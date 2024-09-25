@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>河海大学课程表</title>
+    <style>
+        :root {
+            --background-color: rgba(243, 243, 243, 0.8);
+            --primary-color: rgba(0, 120, 212, 0.9);
+            --text-color: rgba(50, 49, 48, 0.9);
+            --border-color: rgba(225, 225, 225, 0.6);
+            --hover-color: rgba(245, 245, 245, 0.8);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-image: url('th.jpeg');
+            /* 替换为您喜欢的背景图片 */
+            background-size: cover;
+            background-attachment: fixed;
+            color: var(--text-color);
+        }
+
+        h1,
+        h2,
+        h3 {
+            color: var(--primary-color);
+        }
+
+        table {
+            border-collapse: separate;
+            border-spacing: 0;
+            width: 100%;
+            background-color: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            border-radius: 4px;
+            overflow: hidden;
+            backdrop-filter: blur(5px);
+        }
+
+        th,
+        td {
+            border: 1px solid var(--border-color);
+            padding: 12px;
+            text-align: center;
+        }
+
+        th {
+            background-color: var(--primary-color);
+            color: white;
+            font-weight: normal;
+        }
+
+        .course-cell {
+            background-color: rgba(230, 242, 255, 0.8);
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(3px);
+        }
+
+        .course-cell:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            transform: translateY(-2px);
+            background-color: rgba(230, 242, 255, 0.9);
+        }
+
+        .course-cell strong {
+            font-size: 1.1em;
+            color: var(--primary-color);
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        .course-cell p {
+            margin: 5px 0;
+        }
+
+        .course-cell details {
+            margin-top: 10px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 5px;
+        }
+
+        .course-cell summary {
+            cursor: pointer;
+            color: var(--primary-color);
+            font-weight: bold;
+        }
+
+        .course-details {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 0.9em;
+        }
+
+        .course-details td {
+            padding: 5px;
+            border: none;
+            text-align: left;
+        }
+
+        .course-details td:first-child {
+            font-weight: bold;
+            width: 30%;
+            color: var(--text-color);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+            backdrop-filter: blur(3px);
+        }
+
+        button:hover {
+            background-color: rgba(16, 110, 190, 0.9);
+            transform: translateY(-2px);
+        }
+
+        #result,
+        #noteSection {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: rgba(255, 255, 255, 0.8);
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+            backdrop-filter: blur(5px);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="loadingIndicator" style="display: none;">正在加载课程信息...</div>
+
+    <button id="loginButton">登录并获取课表</button>
+    <button id="loadButton">加载本地课表</button>
+    <div id="result"></div>
+    <div id="courseTable"></div>
+    <div id="noteSection"></div>
+
+    <!-- 在 script 标签之前添加这段 JavaScript -->
+    <script>
+        // 显示加载指示器
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+
+        // 隐藏加载指示器
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+
+        // 在页面加载时显示加载指示器
+        showLoading();
+    </script>
+    <script src="renderer.js"></script>
+</body>
+
+</html>
