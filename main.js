@@ -1,6 +1,8 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
+const puppeteer = require('puppeteer');
+const cheerio = require('cheerio');
 function createWindow() {
     const win = new BrowserWindow({
         width: 1800,

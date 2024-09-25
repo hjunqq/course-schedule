@@ -89,8 +89,8 @@ function displayCourseTable(courseInfo) {
         if (a.dayIndex !== b.dayIndex) {
             return a.dayIndex - b.dayIndex;
         }
-        const [aStartTime] = a.timeSlot.split('～')[0].split(' ');
-        const [bStartTime] = b.timeSlot.split('～')[0].split(' ');
+        const [aStartTime] = a.timeSlot.match(/\d{2}:\d{2}/);
+        const [bStartTime] = b.timeSlot.match(/\d{2}:\d{2}/);
         const [aHours, aMinutes] = aStartTime.split(':').map(Number);
         const [bHours, bMinutes] = bStartTime.split(':').map(Number);
         return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
@@ -184,11 +184,20 @@ function isCoursePast(course, currentDate) {
 }
 
 function getDayOfWeek(dateString) {
-    const [month, day] = dateString.split('-').map(Number);
-    const date = new Date(new Date().getFullYear(), month - 1, day); // 使用当前年份
     const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    return days[date.getDay()];
+    const today = new Date();
+    const monday = new Date(today.setDate(today.getDate() - today.getDay() + 1));
+    const result = {};
+    
+    for (let i = 0; i < 7; i++) {
+        const currentDate = new Date(monday);
+        currentDate.setDate(monday.getDate() + i);
+        result[days[(i + 1) % 7]] = currentDate.toISOString().split('T')[0];
+    }
+    
+    return result[dateString] || '无效日期';
 }
+
 function findNextCourse(sortedCourses, currentDay, currentTime) {
     console.log('当前星期:', currentDay);
     console.log('当前时间(分钟):', currentTime);
@@ -252,13 +261,18 @@ function displayNextCourseReminder(nextCourse, courseInfo, tableDiv) {
         return;
     }
     console.log('显示下一节课提醒:', nextCourse);
+
+    // 获取下一节课的具体日期
+    const nextCourseDate = getDayOfWeek(courseInfo.dates[nextCourse.dayIndex]);
+    const formattedDate = new Date(nextCourseDate).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+
     const nextCourseDiv = document.createElement('div');
     nextCourseDiv.className = 'next-course-reminder';
     nextCourseDiv.innerHTML = `
         <div class="reminder-content">
             <strong>下一节课：</strong>
             <span>${nextCourse.name}</span>
-            <span>${courseInfo.dates[nextCourse.dayIndex]} ${nextCourse.timeSlot}</span>
+            <span>${formattedDate} ${nextCourse.timeSlot}</span>
             <span>${getDetailInfo(nextCourse.details, '地点')}</span>
         </div>
     `;
