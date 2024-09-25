@@ -53,6 +53,15 @@
             background-color: var(--primary-color);
             color: white;
             font-weight: normal;
+            padding: 8px 4px;
+            /* 调整内边距 */
+            line-height: 1.2;
+            /* 调整行高 */
+        }
+
+        th:first-child {
+            /* 为"节次"列设置特殊样式 */
+            vertical-align: middle;
         }
 
         .course-cell {
@@ -144,6 +153,104 @@
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
             backdrop-filter: blur(5px);
         }
+
+        #result {
+            display: none;
+            /* 其他样式保持不变 */
+        }
+
+        @keyframes blink {
+            0% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.5;
+            }
+
+            100% {
+                opacity: 1;
+            }
+        }
+
+        .next-course {
+            background-color: rgba(255, 255, 0, 0.3) !important;
+            box-shadow: 0 0 10px rgba(255, 255, 0, 0.5);
+            transform: scale(1.05);
+            animation: blink 1s infinite;
+        }
+
+        .past-course {
+            background-color: rgba(200, 200, 200, 0.8) !important;
+            /* 灰色背景表示已上过的课程 */
+        }
+
+        .future-course {
+            background-color: rgba(230, 242, 255, 0.8) !important;
+            /* 浅蓝色背景表示未上过的课程 */
+        }
+
+        .course-status {
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .past {
+            color: #888;
+        }
+
+        .future {
+            color: #008000;
+        }
+
+        .next-course-reminder {
+            background: linear-gradient(90deg, #6e8efb, #a777e3);
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            color: white;
+            margin-bottom: 15px;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .next-course-reminder:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .reminder-content {
+            display: flex;
+            align-items: center;
+            padding: 10px 15px;
+            font-size: 0.9em;
+        }
+
+        .reminder-content strong {
+            margin-right: 10px;
+        }
+
+        .reminder-content span {
+            margin-right: 15px;
+            white-space: nowrap;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.02);
+            }
+
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        .next-course-reminder {
+            animation: pulse 2s infinite;
+        }
     </style>
 </head>
 
@@ -157,20 +264,7 @@
     <div id="noteSection"></div>
 
     <!-- 在 script 标签之前添加这段 JavaScript -->
-    <script>
-        // 显示加载指示器
-        function showLoading() {
-            document.getElementById('loadingIndicator').style.display = 'block';
-        }
-
-        // 隐藏加载指示器
-        function hideLoading() {
-            document.getElementById('loadingIndicator').style.display = 'none';
-        }
-
-        // 在页面加载时显示加载指示器
-        showLoading();
-    </script>
+    <!-- <script src="script.js"></script> -->
     <script src="renderer.js"></script>
 </body>
 
