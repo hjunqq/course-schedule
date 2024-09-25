@@ -1,6 +1,7 @@
 const { ipcRenderer } = require('electron');
 
 document.getElementById('loginButton').addEventListener('click', () => {
+    showLoading();
     ipcRenderer.send('start-login');
 });
 
@@ -10,6 +11,7 @@ document.getElementById('loadButton').addEventListener('click', () => {
 });
 
 ipcRenderer.on('login-result', (event, message) => {
+    hideLoading();
     const resultDiv = document.getElementById('result');
     if (message) {
         resultDiv.innerText = message;
@@ -288,3 +290,16 @@ function showStatus(message, duration = 5000) {
         resultDiv.style.display = 'none';
     }, duration);
 }
+
+// 添加以下代码来处理窗口控制
+document.getElementById('minimize-btn').addEventListener('click', () => {
+    ipcRenderer.send('minimize-window');
+});
+
+document.getElementById('maximize-btn').addEventListener('click', () => {
+    ipcRenderer.send('maximize-window');
+});
+
+document.getElementById('close-btn').addEventListener('click', () => {
+    ipcRenderer.send('close-window');
+});

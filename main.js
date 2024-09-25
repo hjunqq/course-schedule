@@ -7,6 +7,8 @@ function createWindow() {
     const win = new BrowserWindow({
         width: 1800,
         height: 1200,
+        frame: false, // 设置为无边框模式
+        titleBarStyle: 'hidden',
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: true,
@@ -43,7 +45,10 @@ app.on('window-all-closed', () => {
 ipcMain.on('start-login', async (event) => {
     let browser;
     try {
-        browser = await puppeteer.launch({ headless: false });
+        browser = await puppeteer.launch({
+            headless: true, // �?headless 设置�?true，使浏览器在后台运行
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // 添加这些参数以确保在某些环境中正常运�?
+        });
         const page = await browser.newPage();
         await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
             waitUntil: 'networkidle2',
@@ -186,3 +191,18 @@ const { protocol } = require('electron');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'file', privileges: { secure: true, standard: true } }
 ]);
+// 添加以下代码来处理窗口控�?
+ipcMain.on('minimize-window', () => {
+    BrowserWindow.getFocusedWindow().minimize();
+});
+ipcMain.on('maximize-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win.isMaximized()) {
+        win.unmaximize();
+    } else {
+        win.maximize();
+    }
+});
+ipcMain.on('close-window', () => {
+    BrowserWindow.getFocusedWindow().close();
+});

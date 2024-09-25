@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>河海大学课程表</title>
+    <title>课程表</title>
     <style>
         :root {
             --background-color: rgba(243, 243, 243, 0.8);
@@ -12,6 +12,56 @@
             --text-color: rgba(50, 49, 48, 0.9);
             --border-color: rgba(225, 225, 225, 0.6);
             --hover-color: rgba(245, 245, 245, 0.8);
+        }
+        /* 添加以下样式 */
+        .title-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 32px;
+            background-color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 10px;
+            -webkit-app-region: drag;
+            z-index: 1000;
+        }
+
+        .window-title {
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .window-controls {
+            display: flex;
+            -webkit-app-region: no-drag;
+        }
+
+        .window-controls button {
+            width: 46px;
+            height: 32px;
+            background-color: transparent;
+            border: none;
+            color: white;
+            font-family: "Segoe MDL2 Assets", sans-serif;
+            font-size: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+            padding: 0;
+            margin: 0;
+        }
+
+        .window-controls button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        #close-btn:hover {
+            background-color: #e81123;
         }
 
         body {
@@ -23,6 +73,7 @@
             background-size: cover;
             background-attachment: fixed;
             color: var(--text-color);
+            padding-top: 52px; /* 32px (标题栏高度) + 20px (原有的 padding) */
         }
 
         h1,
@@ -255,7 +306,14 @@
 </head>
 
 <body>
-    <div id="loadingIndicator" style="display: none;">正在加载课程信息...</div>
+    <div class="title-bar">
+        <div class="window-title">课程表</div>
+        <div class="window-controls">
+            <button id="minimize-btn">&#xE921;</button>
+            <button id="maximize-btn">&#xE922;</button>
+            <button id="close-btn">&#xE8BB;</button>
+        </div>
+    </div>
 
     <button id="loginButton">登录并获取课表</button>
     <button id="loadButton">加载本地课表</button>
@@ -263,18 +321,12 @@
     <div id="courseTable"></div>
     <div id="noteSection"></div>
 
-    <div class="title-bar">
-        <span>我的应用</span>
-        <div class="window-controls no-drag">
-            <button id="minimize-btn">-</button>
-            <button id="maximize-btn">□</button>
-            <button id="close-btn">×</button>
-        </div>
-    </div>
-
     <!-- 在 script 标签之前添加这段 JavaScript -->
     <!-- <script src="script.js"></script> -->
     <script src="renderer.js"></script>
+
+    <!-- 在 body 标签内，其他内容之前添加 -->
+    <div id="loadingIndicator" style="display: none;">正在登录，请稍候...</div>
 </body>
 
 </html>
