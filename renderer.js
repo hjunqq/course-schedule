@@ -369,18 +369,8 @@ document.getElementById('maximize-btn').addEventListener('click', () => {
 });
 
 document.getElementById('close-btn').addEventListener('click', () => {
-    ipcRenderer.send('quit-app');
+    ipcRenderer.send('close-window');
 });
-
-// 修改隐藏到托盘按钮的事件监听器
-document.getElementById('hide-to-tray-btn').addEventListener('click', () => {
-    ipcRenderer.send('hide-window');
-});
-
-// 如果需要，可以添加一个显示窗口的函数
-function showWindow() {
-    ipcRenderer.send('show-window');
-}
 
 document.addEventListener('DOMContentLoaded', () => {
     requestSemesterStart();

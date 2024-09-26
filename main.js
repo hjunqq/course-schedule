@@ -15,7 +15,7 @@ function createWindow() {
     const { screen } = require('electron');
     const primaryDisplay = screen.getPrimaryDisplay();
     const { width, height } = primaryDisplay.workAreaSize;
-    // 根据操作系统选择正确的图标文�?
+    // 根据操作系统选择正确的图标文件
     let iconPath;
     if (process.platform === 'win32') {
         iconPath = path.join(__dirname, 'icons', 'icon-64.ico');
@@ -25,8 +25,8 @@ function createWindow() {
         iconPath = path.join(__dirname, 'icons', 'icon.png');
     }
     mainWindow = new BrowserWindow({
-        width: Math.min(1800, width * 0.9),  // �?800和屏幕宽�?0%中的较小�?
-        height: Math.min(1200, height * 0.9),  // �?200和屏幕高�?0%中的较小�?
+        width: Math.min(1800, width * 0.9),  // 1800和屏幕宽度的90%中的较小值
+        height: Math.min(1200, height * 0.9),  // 1200和屏幕高度的90%中的较小值
         frame: false, // 设置为无边框模式
         titleBarStyle: 'hidden',
         transparent: true, // 设置窗口为透明
@@ -39,7 +39,7 @@ function createWindow() {
         },
     });
     mainWindow.loadFile('index.html');
-    // 在开发模式下自动打开开发者工�?
+    // 在开发模式下自动打开开发者工具
     if (isDev) {
         mainWindow.webContents.openDevTools();
     }
@@ -47,7 +47,7 @@ function createWindow() {
     mainWindow.webContents.on('did-finish-load', async () => {
         try {
             const filePath = path.join(__dirname, 'course_info.json');
-            await fs.access(filePath); // 检查文件是否存�?
+            await fs.access(filePath); // 检查文件是否存在
             const data = await fs.readFile(filePath, 'utf8');
             const courseInfo = JSON.parse(data);
             mainWindow.webContents.send('course-info', courseInfo);
@@ -59,17 +59,20 @@ function createWindow() {
     const icon = nativeImage.createFromPath(path.join(__dirname, 'icons', 'tray-icon.ico')).resize({ width: 16, height: 16 });
     tray = new Tray(icon);
     const contextMenu = Menu.buildFromTemplate([
-        { 
-            label: '显示', 
+        {
+            label: '显示',
             click: () => {
                 showMainWindow();
-            } 
+            }
         },
-        { label: '退�?, click: () => {
-            app.quit();  // 直接调用 app.quit()，不需要设�?app.isQuitting
-        }}
+        {
+            label: '退出', click: () => {
+                app.isQuitting = true;
+                app.quit();
+            }
+        }
     ]);
-    tray.setToolTip('课程�?);
+    tray.setToolTip('课程表');
     tray.setContextMenu(contextMenu);
     tray.on('click', () => {
         toggleMainWindow();
@@ -94,6 +97,13 @@ function createWindow() {
     mainWindow.on('minimize', (event) => {
         event.preventDefault();
         mainWindow.hide();
+    });
+    mainWindow.on('close', (event) => {
+        if (!app.isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+        return false;
     });
 }
 function showMainWindow() {
@@ -139,8 +149,8 @@ ipcMain.on('start-login', async (event) => {
         const configData = await fs.readFile(configPath, 'utf8');
         const config = JSON.parse(configData);
         browser = await puppeteer.launch({
-            headless: true, // �?headless 设置�?true，使浏览器在后台运行
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] // 添加这些参数以确保在某些环境中正常运�?
+            headless: true, // ?headless 设置?true，使浏览器在后台运行
+            args: ['--no-sandbox', '--disable-setuid-sandbox'] // 添加这些参数以确保在某些环境中正常运?
         });
         const page = await browser.newPage();
         await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
@@ -174,23 +184,23 @@ ipcMain.on('start-login', async (event) => {
             await fs.writeFile('course_table.html', pageContent);
             const courseInfo = await parseCourseInfo(pageContent);
             if (courseInfo.courses.length === 0) {
-                throw new Error('未能解析到任何课程信�?);
+                throw new Error('未能解析到任何课程信息');
             }
             // 将解析结果保存为 JSON 文件
             await fs.writeFile('course_info.json', JSON.stringify(courseInfo, null, 2), 'utf8');
             console.log('课程信息已保存到 course_info.json 文件');
-            event.reply('login-result', '登录成功，课表信息已解析并保�?);
+            event.reply('login-result', '登录成功，课表信息已解析并保存');
             event.reply('course-info', courseInfo);
         } else {
             event.reply('login-result', '登录失败');
         }
         await browser.close();
     } catch (error) {
-        console.error('登录过程中发生错�?', error);
+        console.error('登录过程中发生错误', error);
         if (error.name === 'TimeoutError') {
-            console.error('页面加载超时。当�?URL:', await page.url());
+            console.error('页面加载超时。当前URL:', await page.url());
         }
-        event.reply('login-result', '登录过程中发生错�? ' + error.message);
+        event.reply('login-result', '登录过程中发生错误 ' + error.message);
     } finally {
         if (browser) {
             await browser.close();
@@ -200,46 +210,43 @@ ipcMain.on('start-login', async (event) => {
 async function parseCourseInfo(html, selectedWeek) {
     const $ = cheerio.load(html, { decodeEntities: false });
     const courses = [];
-    console.log('开始解析课程信�?);
-    // 提取时间段信�?
+    console.log('开始解析课程信息');
+    // 提取时间段信息
     const timeSlots = $('.table-body ul').map((i, ul) => {
         const slotInfo = $(ul).find('.row-one');
         const slotName = slotInfo.find('h5').text().trim();
         const slotDetail = slotInfo.find('span').map((i, span) => $(span).text().trim()).get().join(' ');
         return `${slotName} ${slotDetail}`;
     }).get();
-    console.log('时间段信�?', timeSlots);
+    console.log('时间段信息:', timeSlots);
     $('.table-class').each((index, element) => {
         try {
             const courseElement = $(element);
             const courseName = courseElement.find('h4').text().trim();
             console.log('课程名称:', courseName);
             const courseDetails = courseElement.find('ul li').map((i, li) => $(li).text().trim()).get();
-ECHO ���ڹر�״̬��
             const suspensionInfo = courseElement.find('.suspension-table-class');
             const courseInfo = suspensionInfo.find('ul li').map((i, li) => $(li).text().trim()).get();
-            // �?class 属性中提取 day �?
+            // 从 class 属性中提取 day 信息
             const classAttr = courseElement.attr('class');
             const dayMatch = classAttr.match(/day(\d+)/);
             const dayIndex = dayMatch ? parseInt(dayMatch[1]) : 0;
-ECHO ���ڹر�״̬��
-            // �?style 属性中提取 top 值的计算系数
+            // 从 style 属性中提取 top 值的计算系数
             const styleAttr = courseElement.attr('style');
             const topMatch = styleAttr.match(/top:\s*calc\(\((\d+)/);
             const timeSlotIndex = topMatch ? parseInt(topMatch[1]) : 0;
-            const courseNameMatch = courseName.match(/(.+)\(课程�?(.+)-课序�?(.+)\)/);
-ECHO ���ڹر�״̬��
+            const courseNameMatch = courseName.match(/(.+)\(课程?(.+)-课序?(.+)\)/);
             if (courseNameMatch) {
                 courses.push({
                     name: courseNameMatch[1].trim(),
                     code: courseNameMatch[2].trim(),
                     sequenceNumber: courseNameMatch[3].trim(),
                     details: courseDetails,
-                    credit: courseInfo[1] ? courseInfo[1].split('�?)[1]?.trim() : '',
-                    type: courseInfo[2] ? courseInfo[2].split('�?)[1]?.trim() : '',
-                    weeks: courseInfo[3] ? courseInfo[3].split('�?)[1]?.trim() : '',
-                    location: courseInfo[4] ? courseInfo[4].split('�?)[1]?.trim() : '',
-                    class: courseInfo[5] ? courseInfo[5].split('�?)[1]?.trim() : '',
+                    credit: courseInfo[1] ? courseInfo[1].split('：')[1]?.trim() : '',
+                    type: courseInfo[2] ? courseInfo[2].split('：')[1]?.trim() : '',
+                    weeks: courseInfo[3] ? courseInfo[3].split('：')[1]?.trim() : '',
+                    location: courseInfo[4] ? courseInfo[4].split('：')[1]?.trim() : '',
+                    class: courseInfo[5] ? courseInfo[5].split('：')[1]?.trim() : '',
                     dayIndex: dayIndex,
                     timeSlot: timeSlots[timeSlotIndex] || '',
                     timeSlotIndex: timeSlotIndex
@@ -249,7 +256,7 @@ ECHO ���ڹر�״̬��
                 console.log('无法匹配课程名称:', courseName);
             }
         } catch (error) {
-            console.error('解析课程信息时出�?', error);
+            console.error('解析课程信息时出错', error);
         }
     });
     console.log('解析到的课程数量:', courses.length);
@@ -259,11 +266,11 @@ ECHO ���ڹر�״̬��
         note = $('.xsdPerson .row-one').last().next().find('span').text().trim();
         console.log('备注信息:', note);
     } catch (error) {
-        console.error('解析备注信息时出�?', error);
+        console.error('解析备注信息时出错', error);
     }
     // 生成日期数组
     const dates = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    // 添加当前周次信息 (默认�?,将在更新时被覆盖)
+    // 添加当前周次信息 (默认值,将在更新时被覆盖)
     const currentWeek = parseInt(selectedWeek);
     return { courses, note, dates, timeSlots, currentWeek };
 }
@@ -278,8 +285,8 @@ ipcMain.on('load-course-info', async (event) => {
         console.log('解析后的课程信息:', courseInfo);
         event.reply('course-info', courseInfo);
     } catch (error) {
-        console.error('加载本地课表时发生错�?', error);
-        event.reply('load-course-info-error', '加载本地课表时发生错�? ' + error.message);
+        console.error('加载本地课表时发生错误', error);
+        event.reply('load-course-info-error', '加载本地课表时发生错误 ' + error.message);
     }
 });
 ipcMain.on('update-course-info', async (event, selectedWeek) => {
@@ -300,8 +307,8 @@ ipcMain.on('update-course-info', async (event, selectedWeek) => {
             event.reply('course-info-updated', allCourseInfo);
             return;
         }
-        // 如果本地没有数据,则进行网络抓�?
-        console.log(`本地没有�?{selectedWeek}周的数据,开始网络抓取`);
+        // 如果本地没有数据,则进行网络抓取
+        console.log(`本地没有第${selectedWeek}周的数据,开始网络抓取`);
         const configPath = path.join(__dirname, 'config.json');
         const configData = await fs.readFile(configPath, 'utf8');
         const config = JSON.parse(configData);
@@ -310,7 +317,7 @@ ipcMain.on('update-course-info', async (event, selectedWeek) => {
             args: ['--no-sandbox', '--disable-setuid-sandbox']
         });
         const page = await browser.newPage();
-        // 登录过程 (可以复用之前的登录代�?
+        // 登录过程 (可以复用之前的登录代码)
         await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
             waitUntil: 'networkidle2',
             timeout: 60000
@@ -340,25 +347,25 @@ ipcMain.on('update-course-info', async (event, selectedWeek) => {
             await page.waitForSelector('.xsdPerson .table-class', { timeout: 60000 });
             const pageContent = await page.content();
             const courseInfo = await parseCourseInfo(pageContent, selectedWeek);
-            // 更新特定周次的课程信�?
+            // 更新特定周次的课程信息
             allCourseInfo[selectedWeek] = courseInfo;
             allCourseInfo.currentWeek = parseInt(selectedWeek);
             // 更新 JSON 文件
             await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
-            console.log(`�?{selectedWeek}周课程信息已更新并保存到 course_info.json 文件`);
+            console.log(`第${selectedWeek}周课程信息已更新并保存到 course_info.json 文件`);
             event.reply('course-info-updated', allCourseInfo);
         } else {
             event.reply('load-course-info-error', '登录失败');
         }
         await browser.close();
     } catch (error) {
-        console.error('更新课程信息时发生错�?', error);
-        event.reply('load-course-info-error', '更新课程信息时发生错�? ' + error.message);
+        console.error('更新课程信息时发生错误', error);
+        event.reply('load-course-info-error', '更新课程信息时发生错误 ' + error.message);
     }
 });
 const { protocol } = require('electron');
 protocol.registerSchemesAsPrivileged([
-  { scheme: 'file', privileges: { secure: true, standard: true } }
+    { scheme: 'file', privileges: { secure: true, standard: true } }
 ]);
 ipcMain.on('hide-window', () => {
     hideMainWindow();
@@ -374,10 +381,11 @@ app.on('will-quit', () => {
         tray.destroy();
     }
 });
-// 在文件顶部的 ipcMain 监听器部分添加以下代�?
+// 在文件顶部的 ipcMain 监听器部分添加以下代码
 ipcMain.on('minimize-window', () => {
     if (mainWindow) mainWindow.minimize();
 });
+
 ipcMain.on('maximize-window', () => {
     if (mainWindow) {
         if (mainWindow.isMaximized()) {
@@ -387,13 +395,16 @@ ipcMain.on('maximize-window', () => {
         }
     }
 });
+
 ipcMain.on('close-window', () => {
-    if (mainWindow) mainWindow.close();
+    if (mainWindow) mainWindow.hide(); // 改为隐藏窗口而不是关闭
 });
-// 添加这个新的 IPC 处理程序
+
+// 添加这个新的 IPC 处理程序用于退出应用
 ipcMain.on('quit-app', () => {
     app.quit();
 });
+
 function createConfigWindow() {
     configWindow = new BrowserWindow({
         width: 400,
@@ -405,7 +416,7 @@ function createConfigWindow() {
         },
     });
     configWindow.loadFile('config.html');
-    // 在开发模式下自动打开开发者工�?
+    // 在开发模式下自动打开开发者工具
     if (isDev) {
         configWindow.webContents.openDevTools();
     }
@@ -427,7 +438,7 @@ ipcMain.on('load-config', async (event) => {
         const config = JSON.parse(data);
         event.reply('config-loaded', config);
     } catch (error) {
-        console.error('加载配置时发生错�?', error);
+        console.error('加载配置时发生错误', error);
         event.reply('config-loaded', null);
     }
 });
@@ -437,7 +448,7 @@ ipcMain.on('save-config', async (event, config) => {
         await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
         event.reply('config-saved', '配置保存成功');
     } catch (error) {
-        console.error('保存配置时发生错�?', error);
+        console.error('保存配置时发生错误', error);
         event.reply('config-saved', '保存配置失败: ' + error.message);
     }
 });
@@ -456,7 +467,7 @@ ipcMain.on('maximize-config-window', () => {
 ipcMain.on('close-config-window', () => {
     if (configWindow) configWindow.close();
 });
-// 添加新的 IPC 监听器来获取学期开始日�?
+// 添加新的 IPC 监听器来获取学期开始日期
 ipcMain.on('get-semester-start', async (event) => {
     try {
         const configPath = path.join(__dirname, 'config.json');
