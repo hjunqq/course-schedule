@@ -15,7 +15,8 @@
             --hover-color: rgba(245, 245, 245, 0.8);
         }
 
-        html, body {
+        html,
+        body {
             height: 100%;
             margin: 0;
             padding: 0;
@@ -100,10 +101,13 @@
             backdrop-filter: blur(5px);
         }
 
-        th, td {
+        th,
+        td {
             border: 1px solid var(--border-color);
-            padding: 10px;  /* 增加单元格内边距 */
-            font-size: 1em;  /* 增加表格内文字大小 */
+            padding: 10px;
+            /* 增加单元格内边距 */
+            font-size: 1em;
+            /* 增加表格内文字大小 */
             text-align: center;
         }
 
@@ -117,9 +121,12 @@
         .course-cell {
             background-color: rgba(230, 242, 255, 0.5);
             border-radius: 4px;
-            padding: 8px;  /* 增加内边距 */
-            margin-bottom: 4px;  /* 增加底部间距 */
-            font-size: 0.9em;  /* 增加基础字体大小 */
+            padding: 8px;
+            /* 增加内边距 */
+            margin-bottom: 4px;
+            /* 增加底部间距 */
+            font-size: 0.9em;
+            /* 增加基础字体大小 */
             transition: all 0.3s ease;
             backdrop-filter: blur(3px);
         }
@@ -131,14 +138,19 @@
         }
 
         .course-cell strong {
-            font-size: 1.1em;  /* 增加课程名称的字体大小 */
-            display: block;  /* 使课程名称单独占一行 */
-            margin-bottom: 4px;  /* 增加与下方内容的间距 */
+            font-size: 1.1em;
+            /* 增加课程名称的字体大小 */
+            display: block;
+            /* 使课程名称单独占一行 */
+            margin-bottom: 4px;
+            /* 增加与下方内容的间距 */
         }
 
         .course-cell p {
-            margin: 4px 0;  /* 调整段落的上下间距 */
-            font-size: 0.95em;  /* 稍微增加段落文字的大小 */
+            margin: 4px 0;
+            /* 调整段落的上下间距 */
+            font-size: 0.95em;
+            /* 稍微增加段落文字的大小 */
         }
 
         button {
@@ -161,7 +173,8 @@
             transform: translateY(-2px);
         }
 
-        #result, #noteSection {
+        #result,
+        #noteSection {
             margin-top: 10px;
             padding: 10px;
             background-color: rgba(255, 255, 255, 0.5);
@@ -207,7 +220,8 @@
         .course-status {
             font-weight: bold;
             margin-left: 5px;
-            font-size: 0.9em;  /* 调整状态文字的大小 */
+            font-size: 0.9em;
+            /* 调整状态文字的大小 */
         }
 
         .past {
@@ -226,28 +240,37 @@
             margin-bottom: 15px;
             overflow: hidden;
             transition: all 0.3s ease;
-            font-size: 0.9em;  /* 减小字体大小 */
-            padding: 8px 12px;  /* 减小内边距 */
-            max-width: 100%;  /* 确保不超过父容器宽度 */
-            box-sizing: border-box;  /* 包含内边距和边框在内的盒模型 */
+            font-size: 0.9em;
+            /* 减小字体大小 */
+            padding: 8px 12px;
+            /* 减小内边距 */
+            max-width: 100%;
+            /* 确保不超过父容器宽度 */
+            box-sizing: border-box;
+            /* 包含内边距和边框在内的盒模型 */
         }
 
         .reminder-content {
             display: flex;
-            flex-wrap: wrap;  /* 允许内容换行 */
+            flex-wrap: wrap;
+            /* 允许内容换行 */
             align-items: center;
             justify-content: flex-start;
-            gap: 8px;  /* 各元素之间的间隔 */
+            gap: 8px;
+            /* 各元素之间的间隔 */
         }
 
         .reminder-content strong {
             margin-right: 8px;
-            font-size: 1em;  /* 调整"下一节课"标题的大小 */
-            white-space: nowrap;  /* 防止标题换行 */
+            font-size: 1em;
+            /* 调整"下一节课"标题的大小 */
+            white-space: nowrap;
+            /* 防止标题换行 */
         }
 
         .reminder-content span {
-            white-space: nowrap;  /* 防止单个信息项换行 */
+            white-space: nowrap;
+            /* 防止单个信息项换行 */
         }
 
         @keyframes pulse {
@@ -256,7 +279,8 @@
             }
 
             50% {
-                transform: scale(1.01);  /* 减小放大效果 */
+                transform: scale(1.01);
+                /* 减小放大效果 */
             }
 
             100% {
@@ -326,6 +350,56 @@
             width: 16px;
             text-align: center;
         }
+
+        .week-selector-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 10px 0;
+        }
+
+        .week-selector {
+            appearance: none;
+            background-color: var(--primary-color);
+            color: white;
+            padding: 8px 16px;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 0 10px;
+        }
+
+        .week-selector:hover {
+            background-color: rgba(16, 110, 190, 0.9);
+        }
+
+        .week-selector:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.5);
+        }
+
+        .week-nav-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .week-nav-btn:hover {
+            background-color: rgba(16, 110, 190, 0.9);
+            transform: translateY(-2px);
+        }
+
+        .week-nav-btn:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(0, 120, 212, 0.5);
+        }
     </style>
 </head>
 
@@ -344,6 +418,15 @@
         <div>
             <button id="loginButton"><i class="fas fa-sign-in-alt icon"></i>登录并获取课表</button>
             <button id="loadButton"><i class="fas fa-file-import icon"></i>加载本地课表</button>
+            <button id="configButton"><i class="fas fa-cog icon"></i>配置</button>
+            <div class="week-selector-container">
+                <button id="prevWeekBtn" class="week-nav-btn"><i class="fas fa-chevron-left"></i></button>
+                <select id="weekSelector" class="week-selector">
+                    <option value="">选择周次</option>
+                    <!-- 选项将通过 JavaScript 动态添加 -->
+                </select>
+                <button id="nextWeekBtn" class="week-nav-btn"><i class="fas fa-chevron-right"></i></button>
+            </div>
         </div>
         <div id="result"></div>
         <div id="courseTable"></div>

@@ -5,6 +5,8 @@ const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
 let mainWindow = null;
 let tray = null;
+let configWindow = null;
+const isDev = process.env.NODE_ENV === 'development';
 // 设置应用程序图标
 if (process.platform === 'win32') {
     app.setAppUserModelId(process.execPath);
@@ -37,6 +39,10 @@ function createWindow() {
         },
     });
     mainWindow.loadFile('index.html');
+    // 在开发模式下自动打开开发者工�?
+    if (isDev) {
+        mainWindow.webContents.openDevTools();
+    }
     // 当窗口加载完成时，检查并加载本地 JSON 文件
     mainWindow.webContents.on('did-finish-load', async () => {
         try {
@@ -129,6 +135,9 @@ app.on('window-all-closed', () => {
 ipcMain.on('start-login', async (event) => {
     let browser;
     try {
+        const configPath = path.join(__dirname, 'config.json');
+        const configData = await fs.readFile(configPath, 'utf8');
+        const config = JSON.parse(configData);
         browser = await puppeteer.launch({
             headless: true, // �?headless 设置�?true，使浏览器在后台运行
             args: ['--no-sandbox', '--disable-setuid-sandbox'] // 添加这些参数以确保在某些环境中正常运�?
@@ -138,8 +147,8 @@ ipcMain.on('start-login', async (event) => {
             waitUntil: 'networkidle2',
             timeout: 60000
         });
-        await page.type('#username', 'REMOVED_USERNAME');
-        await page.type('#password', 'REMOVED_PASSWORD');
+        await page.type('#username', config.username);
+        await page.type('#password', config.password);
         const loginButtonSelector = '.auth_login_btn.primary.full_width';
         await page.waitForSelector(loginButtonSelector);
         await page.click(loginButtonSelector);
@@ -188,7 +197,7 @@ ipcMain.on('start-login', async (event) => {
         }
     }
 });
-async function parseCourseInfo(html) {
+async function parseCourseInfo(html, selectedWeek) {
     const $ = cheerio.load(html, { decodeEntities: false });
     const courses = [];
     console.log('开始解析课程信�?);
@@ -254,7 +263,9 @@ ECHO ���ڹر�״̬��
     }
     // 生成日期数组
     const dates = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    return { courses, note, dates, timeSlots };
+    // 添加当前周次信息 (默认�?,将在更新时被覆盖)
+    const currentWeek = parseInt(selectedWeek);
+    return { courses, note, dates, timeSlots, currentWeek };
 }
 ipcMain.on('load-course-info', async (event) => {
     console.log('收到加载课程信息请求');
@@ -269,6 +280,80 @@ ipcMain.on('load-course-info', async (event) => {
     } catch (error) {
         console.error('加载本地课表时发生错�?', error);
         event.reply('load-course-info-error', '加载本地课表时发生错�? ' + error.message);
+    }
+});
+ipcMain.on('update-course-info', async (event, selectedWeek) => {
+    try {
+        // 首先尝试读取本地数据
+        const filePath = path.join(__dirname, 'course_info.json');
+        let allCourseInfo = {};
+        try {
+            const data = await fs.readFile(filePath, 'utf8');
+            allCourseInfo = JSON.parse(data);
+        } catch (error) {
+            console.log('No existing course_info.json found or error reading it:', error);
+        }
+        // 检查是否已有所选周次的数据
+        if (allCourseInfo[selectedWeek]) {
+            console.log(`使用本地缓存的第${selectedWeek}周课程信息`);
+            allCourseInfo.currentWeek = parseInt(selectedWeek);
+            event.reply('course-info-updated', allCourseInfo);
+            return;
+        }
+        // 如果本地没有数据,则进行网络抓�?
+        console.log(`本地没有�?{selectedWeek}周的数据,开始网络抓取`);
+        const configPath = path.join(__dirname, 'config.json');
+        const configData = await fs.readFile(configPath, 'utf8');
+        const config = JSON.parse(configData);
+        const browser = await puppeteer.launch({
+            headless: true,
+            args: ['--no-sandbox', '--disable-setuid-sandbox']
+        });
+        const page = await browser.newPage();
+        // 登录过程 (可以复用之前的登录代�?
+        await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
+            waitUntil: 'networkidle2',
+            timeout: 60000
+        });
+        await page.type('#username', config.username);
+        await page.type('#password', config.password);
+        const loginButtonSelector = '.auth_login_btn.primary.full_width';
+        await page.waitForSelector(loginButtonSelector);
+        await page.click(loginButtonSelector);
+        await page.waitForNavigation({
+            waitUntil: 'networkidle2',
+            timeout: 60000
+        });
+        const cookies = await page.cookies();
+        const iPlanetDirectoryPro = cookies.find(cookie => cookie.name === 'iPlanetDirectoryPro');
+        if (iPlanetDirectoryPro) {
+            await page.goto('http://jwxt.hhu.edu.cn/sso.jsp', {
+                waitUntil: 'networkidle2',
+                timeout: 60000
+            });
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            await page.goto(`http://jwxt.hhu.edu.cn/jsxsd/framework/jsdPerson_hehdx.htmlx?xkzc=${selectedWeek}`, {
+                waitUntil: 'networkidle2',
+                timeout: 60000
+            });
+            await page.waitForSelector('.xsdPerson', { timeout: 60000 });
+            await page.waitForSelector('.xsdPerson .table-class', { timeout: 60000 });
+            const pageContent = await page.content();
+            const courseInfo = await parseCourseInfo(pageContent, selectedWeek);
+            // 更新特定周次的课程信�?
+            allCourseInfo[selectedWeek] = courseInfo;
+            allCourseInfo.currentWeek = parseInt(selectedWeek);
+            // 更新 JSON 文件
+            await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+            console.log(`�?{selectedWeek}周课程信息已更新并保存到 course_info.json 文件`);
+            event.reply('course-info-updated', allCourseInfo);
+        } else {
+            event.reply('load-course-info-error', '登录失败');
+        }
+        await browser.close();
+    } catch (error) {
+        console.error('更新课程信息时发生错�?', error);
+        event.reply('load-course-info-error', '更新课程信息时发生错�? ' + error.message);
     }
 });
 const { protocol } = require('electron');
@@ -308,4 +393,78 @@ ipcMain.on('close-window', () => {
 // 添加这个新的 IPC 处理程序
 ipcMain.on('quit-app', () => {
     app.quit();
+});
+function createConfigWindow() {
+    configWindow = new BrowserWindow({
+        width: 400,
+        height: 300,
+        frame: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+    });
+    configWindow.loadFile('config.html');
+    // 在开发模式下自动打开开发者工�?
+    if (isDev) {
+        configWindow.webContents.openDevTools();
+    }
+    configWindow.on('closed', () => {
+        configWindow = null;
+    });
+}
+ipcMain.on('open-config', () => {
+    if (configWindow === null) {
+        createConfigWindow();
+    } else {
+        configWindow.focus();
+    }
+});
+ipcMain.on('load-config', async (event) => {
+    try {
+        const configPath = path.join(__dirname, 'config.json');
+        const data = await fs.readFile(configPath, 'utf8');
+        const config = JSON.parse(data);
+        event.reply('config-loaded', config);
+    } catch (error) {
+        console.error('加载配置时发生错�?', error);
+        event.reply('config-loaded', null);
+    }
+});
+ipcMain.on('save-config', async (event, config) => {
+    try {
+        const configPath = path.join(__dirname, 'config.json');
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+        event.reply('config-saved', '配置保存成功');
+    } catch (error) {
+        console.error('保存配置时发生错�?', error);
+        event.reply('config-saved', '保存配置失败: ' + error.message);
+    }
+});
+ipcMain.on('minimize-config-window', () => {
+    if (configWindow) configWindow.minimize();
+});
+ipcMain.on('maximize-config-window', () => {
+    if (configWindow) {
+        if (configWindow.isMaximized()) {
+            configWindow.unmaximize();
+        } else {
+            configWindow.maximize();
+        }
+    }
+});
+ipcMain.on('close-config-window', () => {
+    if (configWindow) configWindow.close();
+});
+// 添加新的 IPC 监听器来获取学期开始日�?
+ipcMain.on('get-semester-start', async (event) => {
+    try {
+        const configPath = path.join(__dirname, 'config.json');
+        const data = await fs.readFile(configPath, 'utf8');
+        const config = JSON.parse(data);
+        event.reply('semester-start', config.semesterStart);
+    } catch (error) {
+        console.error('获取学期开始日期时发生错误:', error);
+        event.reply('semester-start', null);
+    }
 });

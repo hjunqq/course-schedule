@@ -10,6 +10,10 @@ document.getElementById('loadButton').addEventListener('click', () => {
     ipcRenderer.send('load-course-info');
 });
 
+document.getElementById('configButton').addEventListener('click', () => {
+    ipcRenderer.send('open-config');
+});
+
 ipcRenderer.on('login-result', (event, message) => {
     hideLoading();
     const resultDiv = document.getElementById('result');
@@ -36,11 +40,20 @@ function hideLoading() {
 }
 
 // 处理课程信息
-function handleCourseInfo(courseInfo) {
-    console.log('收到课程信息:', courseInfo);
-    displayCourseTable(courseInfo);
-    hideLoading();
-    showStatus('课程表加载成功');
+function handleCourseInfo(allCourseInfo) {
+    console.log('收到课程信息:', allCourseInfo);
+    const currentWeek = allCourseInfo.currentWeek;
+    const courseInfo = allCourseInfo[currentWeek];
+    if (courseInfo) {
+        displayCourseTable(courseInfo, currentWeek);
+        hideLoading();
+        showStatus(`第${currentWeek}周课程表加载成功`);
+        
+        // 更新周次选择器的值
+        document.getElementById('weekSelector').value = currentWeek;
+    } else {
+        showStatus(`未找到第${currentWeek}周的课程信息`);
+    }
 }
 
 ipcRenderer.on('course-info', (event, courseInfo) => {
@@ -62,10 +75,24 @@ ipcRenderer.on('load-course-info-error', (event, message) => {
     }
 });
 
-function displayCourseTable(courseInfo) {
+function displayCourseTable(courseInfo, currentWeek) {
     console.log('开始显示课程表');
     const tableDiv = document.getElementById('courseTable');
     tableDiv.innerHTML = '<h2>课程表</h2>';
+    
+    // 添加周次选择器
+    const weekSelector = document.getElementById('weekSelector');
+    weekSelector.value = currentWeek;
+
+    // 创建周次信息元素
+    const weekInfo = document.createElement('div');
+    weekInfo.textContent = `当前显示: 第${currentWeek}周`;
+    weekInfo.style.textAlign = 'center';
+    weekInfo.style.marginBottom = '10px';
+    
+    // 将周次信息添加到 tableDiv
+    tableDiv.appendChild(weekInfo);
+
     const table = document.createElement('table');
     
     // 创建表头
@@ -99,7 +126,7 @@ function displayCourseTable(courseInfo) {
     });
 
     // 找到下一节课
-    let nextCourse = findNextCourse(sortedCourses, currentDay, currentTime);
+    let nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, currentWeek);
 
     // 填充课程信息
     courseInfo.timeSlots.forEach((timeSlot, i) => {
@@ -114,7 +141,7 @@ function displayCourseTable(courseInfo) {
                 
                 if (coursesForThisSlot.length > 0) {
                     cell.innerHTML = coursesForThisSlot.map(course => {
-                        const isPast = isCoursePast(course, now);
+                        const isPast = isCoursePast(course, now, currentWeek);
                         const courseStatus = isPast ? 'past-course' : 'future-course';
                         const statusText = isPast ? '<span class="course-status past"><i class="fas fa-check-circle"></i> 已上课</span>' : '<span class="course-status future"><i class="fas fa-clock"></i> 未上课</span>';
 
@@ -144,6 +171,7 @@ function displayCourseTable(courseInfo) {
         }
     });
 
+    // 将表格添加到 tableDiv
     tableDiv.appendChild(table);
     console.log('课程表显示完成');
 
@@ -171,7 +199,47 @@ function getMonday(d) {
     return new Date(d.setDate(diff));
 }
 
-function isCoursePast(course, currentDate) {
+let semesterStart;
+
+// 在文件开头添加这个函数
+function requestSemesterStart() {
+    ipcRenderer.send('get-semester-start');
+}
+
+// 添加这个监听器
+ipcRenderer.on('semester-start', (event, date) => {
+    if (date) {
+        semesterStart = new Date(date);
+        console.log('学期开始日期:', semesterStart);
+    } else {
+        console.error('无法获取学期开始日期');
+    }
+});
+
+// 修改 getCurrentWeek 函数
+function getCurrentWeek() {
+    if (!semesterStart) {
+        console.error('学期开始日期未设置');
+        return 1; // 默认返回第一周
+    }
+    const now = new Date();
+    const diffTime = Math.abs(now - semesterStart);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return Math.ceil(diffDays / 7);
+}
+
+function isCoursePast(course, currentDate, selectedWeek) {
+    const currentWeek = getCurrentWeek(); // 获取当前时间的周次
+    
+    if (selectedWeek < currentWeek) {
+        return true; // 选中的周在当前周之前
+    }
+    
+    if (selectedWeek > currentWeek) {
+        return false; // 选中的周在当前周之后
+    }
+    
+    // 如果是当前周的课,再根据具体时间判断
     const currentDayIndex = currentDate.getDay() - 1; // 调整为0-6表示周一到周日
     const currentTime = currentDate.getHours() * 60 + currentDate.getMinutes();
 
@@ -201,14 +269,20 @@ function getDayOfWeek(dateString) {
     return result[dateString] || '无效日期';
 }
 
-function findNextCourse(sortedCourses, currentDay, currentTime) {
+function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
     console.log('当前星期:', currentDay);
     console.log('当前时间(分钟):', currentTime);
+    console.log('当前周次:', currentWeek);
     console.log('课程列表:', sortedCourses);
 
     const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1; // 调整为0-6表示周一到周日
 
     for (const course of sortedCourses) {
+        const courseWeeks = getWeekRange(getDetailInfo(course.details, '上课周次'));
+        if (!courseWeeks.includes(currentWeek)) {
+            continue; // 跳过不在当前周的课程
+        }
+
         const timeMatch = course.timeSlot.match(/(\d{2}:\d{2})～/);
         if (!timeMatch) {
             console.log('无法解析课程时间:', course.timeSlot);
@@ -233,18 +307,7 @@ function findNextCourse(sortedCourses, currentDay, currentTime) {
     return null;
 }
 
-function getWeekNumber(date) {
-    // 这里需要实现获取当前教学周的逻辑
-    // 这可能需要根据学期开始日期来计算
-    const semesterStart = new Date('2023-09-04'); // 假设学期开始日期为2023年9月4日
-    const diffTime = Math.abs(date - semesterStart);
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return Math.ceil(diffDays / 7);
-}
-
 function getWeekRange(weekString) {
-    // 解析周次字符串，返回一个包含所有周次的数组
-    // 例如："1-3,5,7-9" 返回 [1,2,3,5,7,8,9]
     const weeks = [];
     const parts = weekString.split(',');
     for (const part of parts) {
@@ -281,6 +344,8 @@ function displayNextCourseReminder(nextCourse, courseInfo, tableDiv) {
             <span>${getDetailInfo(nextCourse.details, '地点')}</span>
         </div>
     `;
+    
+    // 将下一节课提醒插入到 tableDiv 的最前面
     tableDiv.insertBefore(nextCourseDiv, tableDiv.firstChild);
 }
 
@@ -316,3 +381,46 @@ document.getElementById('hide-to-tray-btn').addEventListener('click', () => {
 function showWindow() {
     ipcRenderer.send('show-window');
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    requestSemesterStart();
+    const weekSelector = document.getElementById('weekSelector');
+    const prevWeekBtn = document.getElementById('prevWeekBtn');
+    const nextWeekBtn = document.getElementById('nextWeekBtn');
+
+    for (let i = 1; i <= 20; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `第${i}周`;
+        weekSelector.appendChild(option);
+    }
+
+    weekSelector.addEventListener('change', (event) => {
+        const selectedWeek = event.target.value;
+        if (selectedWeek) {
+            showLoading();
+            ipcRenderer.send('update-course-info', selectedWeek);
+        }
+    });
+
+    prevWeekBtn.addEventListener('click', () => {
+        const currentWeek = parseInt(weekSelector.value);
+        if (currentWeek > 1) {
+            weekSelector.value = currentWeek - 1;
+            weekSelector.dispatchEvent(new Event('change'));
+        }
+    });
+
+    nextWeekBtn.addEventListener('click', () => {
+        const currentWeek = parseInt(weekSelector.value);
+        if (currentWeek < 20) {
+            weekSelector.value = currentWeek + 1;
+            weekSelector.dispatchEvent(new Event('change'));
+        }
+    });
+});
+
+ipcRenderer.on('course-info-updated', (event, allCourseInfo) => {
+    hideLoading();
+    handleCourseInfo(allCourseInfo);
+});

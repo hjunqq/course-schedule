@@ -6,7 +6,8 @@
   "scripts": {
     "start": "electron .",
     "test": "mocha script.test.js",
-    "build": "electron-builder --config.win.signAndEditExecutable=false"
+    "build": "electron-builder --config.win.signAndEditExecutable=false",
+    "dev": "cross-env NODE_ENV=development electron ."
   },
   "author": "Huijun",
   "build": {
