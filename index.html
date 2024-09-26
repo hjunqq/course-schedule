@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>课程表</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         :root {
             --background-color: rgba(243, 243, 243, 0.8);
@@ -13,12 +14,23 @@
             --border-color: rgba(225, 225, 225, 0.6);
             --hover-color: rgba(245, 245, 245, 0.8);
         }
-        /* 添加以下样式 */
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: rgba(255, 255, 255, 0.7);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+        }
+
         .title-bar {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
             height: 32px;
             background-color: var(--primary-color);
             display: flex;
@@ -26,7 +38,6 @@
             justify-content: space-between;
             padding: 0 10px;
             -webkit-app-region: drag;
-            z-index: 1000;
         }
 
         .window-title {
@@ -46,7 +57,7 @@
             background-color: transparent;
             border: none;
             color: white;
-            font-family: "Segoe MDL2 Assets", sans-serif;
+            font-family: "Font Awesome 6 Free", sans-serif;
             font-size: 10px;
             display: flex;
             align-items: center;
@@ -64,39 +75,35 @@
             background-color: #e81123;
         }
 
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            margin: 0;
+        .main-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
             padding: 20px;
-            background-image: url('th.jpeg');
-            /* 替换为您喜欢的背景图片 */
-            background-size: cover;
-            background-attachment: fixed;
-            color: var(--text-color);
-            padding-top: 52px; /* 32px (标题栏高度) + 20px (原有的 padding) */
+            box-sizing: border-box;
         }
 
-        h1,
-        h2,
-        h3 {
-            color: var(--primary-color);
+        #courseTable {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         table {
+            flex: 1;
             border-collapse: separate;
             border-spacing: 0;
-            width: 100%;
-            background-color: rgba(255, 255, 255, 0.8);
+            background-color: rgba(255, 255, 255, 0.5);
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
             border-radius: 4px;
-            overflow: hidden;
             backdrop-filter: blur(5px);
         }
 
-        th,
-        td {
+        th, td {
             border: 1px solid var(--border-color);
-            padding: 12px;
+            padding: 10px;  /* 增加单元格内边距 */
+            font-size: 1em;  /* 增加表格内文字大小 */
             text-align: center;
         }
 
@@ -104,89 +111,49 @@
             background-color: var(--primary-color);
             color: white;
             font-weight: normal;
-            padding: 8px 4px;
-            /* 调整内边距 */
             line-height: 1.2;
-            /* 调整行高 */
-        }
-
-        th:first-child {
-            /* 为"节次"列设置特殊样式 */
-            vertical-align: middle;
         }
 
         .course-cell {
-            background-color: rgba(230, 242, 255, 0.8);
+            background-color: rgba(230, 242, 255, 0.5);
             border-radius: 4px;
-            padding: 10px;
-            margin-bottom: 5px;
-            font-size: 0.9em;
+            padding: 8px;  /* 增加内边距 */
+            margin-bottom: 4px;  /* 增加底部间距 */
+            font-size: 0.9em;  /* 增加基础字体大小 */
             transition: all 0.3s ease;
             backdrop-filter: blur(3px);
         }
 
         .course-cell:hover {
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-            transform: translateY(-2px);
-            background-color: rgba(230, 242, 255, 0.9);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+            background-color: rgba(230, 242, 255, 0.7);
         }
 
         .course-cell strong {
-            font-size: 1.1em;
-            color: var(--primary-color);
-            display: block;
-            margin-bottom: 5px;
+            font-size: 1.1em;  /* 增加课程名称的字体大小 */
+            display: block;  /* 使课程名称单独占一行 */
+            margin-bottom: 4px;  /* 增加与下方内容的间距 */
         }
 
         .course-cell p {
-            margin: 5px 0;
-        }
-
-        .course-cell details {
-            margin-top: 10px;
-            border-top: 1px solid var(--border-color);
-            padding-top: 5px;
-        }
-
-        .course-cell summary {
-            cursor: pointer;
-            color: var(--primary-color);
-            font-weight: bold;
-        }
-
-        .course-details {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 10px;
-            font-size: 0.9em;
-        }
-
-        .course-details td {
-            padding: 5px;
-            border: none;
-            text-align: left;
-        }
-
-        .course-details td:first-child {
-            font-weight: bold;
-            width: 30%;
-            color: var(--text-color);
+            margin: 4px 0;  /* 调整段落的上下间距 */
+            font-size: 0.95em;  /* 稍微增加段落文字的大小 */
         }
 
         button {
             background-color: var(--primary-color);
             border: none;
             color: white;
-            padding: 10px 20px;
+            padding: 8px 16px;
             text-align: center;
             text-decoration: none;
             display: inline-block;
-            font-size: 16px;
+            font-size: 14px;
             margin: 4px 2px;
             cursor: pointer;
             border-radius: 4px;
             transition: all 0.3s ease;
-            backdrop-filter: blur(3px);
         }
 
         button:hover {
@@ -194,11 +161,10 @@
             transform: translateY(-2px);
         }
 
-        #result,
-        #noteSection {
-            margin-top: 20px;
-            padding: 15px;
-            background-color: rgba(255, 255, 255, 0.8);
+        #result, #noteSection {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.5);
             border: 1px solid var(--border-color);
             border-radius: 4px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
@@ -207,7 +173,6 @@
 
         #result {
             display: none;
-            /* 其他样式保持不变 */
         }
 
         @keyframes blink {
@@ -233,17 +198,16 @@
 
         .past-course {
             background-color: rgba(200, 200, 200, 0.8) !important;
-            /* 灰色背景表示已上过的课程 */
         }
 
         .future-course {
             background-color: rgba(230, 242, 255, 0.8) !important;
-            /* 浅蓝色背景表示未上过的课程 */
         }
 
         .course-status {
             font-weight: bold;
-            margin-left: 10px;
+            margin-left: 5px;
+            font-size: 0.9em;  /* 调整状态文字的大小 */
         }
 
         .past {
@@ -262,27 +226,28 @@
             margin-bottom: 15px;
             overflow: hidden;
             transition: all 0.3s ease;
-        }
-
-        .next-course-reminder:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            font-size: 0.9em;  /* 减小字体大小 */
+            padding: 8px 12px;  /* 减小内边距 */
+            max-width: 100%;  /* 确保不超过父容器宽度 */
+            box-sizing: border-box;  /* 包含内边距和边框在内的盒模型 */
         }
 
         .reminder-content {
             display: flex;
+            flex-wrap: wrap;  /* 允许内容换行 */
             align-items: center;
-            padding: 10px 15px;
-            font-size: 0.9em;
+            justify-content: flex-start;
+            gap: 8px;  /* 各元素之间的间隔 */
         }
 
         .reminder-content strong {
-            margin-right: 10px;
+            margin-right: 8px;
+            font-size: 1em;  /* 调整"下一节课"标题的大小 */
+            white-space: nowrap;  /* 防止标题换行 */
         }
 
         .reminder-content span {
-            margin-right: 15px;
-            white-space: nowrap;
+            white-space: nowrap;  /* 防止单个信息项换行 */
         }
 
         @keyframes pulse {
@@ -291,7 +256,7 @@
             }
 
             50% {
-                transform: scale(1.02);
+                transform: scale(1.01);  /* 减小放大效果 */
             }
 
             100% {
@@ -302,31 +267,94 @@
         .next-course-reminder {
             animation: pulse 2s infinite;
         }
+
+        #hide-to-tray-btn {
+            background-color: transparent;
+            border: none;
+            color: white;
+            font-size: 10px;
+            padding: 0 10px;
+            height: 32px;
+            cursor: pointer;
+        }
+
+        #hide-to-tray-btn:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .course-cell details {
+            margin-top: 8px;
+        }
+
+        .course-cell summary {
+            cursor: pointer;
+            text-align: center;
+            padding: 4px;
+            background-color: rgba(0, 120, 212, 0.1);
+            border-radius: 4px;
+        }
+
+        .course-cell summary:hover {
+            background-color: rgba(0, 120, 212, 0.2);
+        }
+
+        .course-details {
+            width: 100%;
+            margin-top: 8px;
+            border-collapse: collapse;
+        }
+
+        .course-details td {
+            padding: 4px;
+            text-align: left;
+            border: none;
+        }
+
+        .course-details td:first-child {
+            font-weight: bold;
+            width: 40%;
+            text-align: right;
+            padding-right: 8px;
+        }
+
+        .course-details td:last-child {
+            width: 60%;
+        }
+
+        .icon {
+            margin-right: 4px;
+            width: 16px;
+            text-align: center;
+        }
     </style>
 </head>
 
 <body>
     <div class="title-bar">
-        <div class="window-title">课程表</div>
+        <div class="window-title"><i class="fas fa-calendar-alt icon"></i>课程表</div>
         <div class="window-controls">
-            <button id="minimize-btn">&#xE921;</button>
-            <button id="maximize-btn">&#xE922;</button>
-            <button id="close-btn">&#xE8BB;</button>
+            <button id="hide-to-tray-btn"><i class="fas fa-eye-slash"></i></button>
+            <button id="minimize-btn"><i class="fas fa-window-minimize"></i></button>
+            <button id="maximize-btn"><i class="fas fa-window-maximize"></i></button>
+            <button id="close-btn"><i class="fas fa-times"></i></button>
         </div>
     </div>
 
-    <button id="loginButton">登录并获取课表</button>
-    <button id="loadButton">加载本地课表</button>
-    <div id="result"></div>
-    <div id="courseTable"></div>
-    <div id="noteSection"></div>
+    <div class="main-container">
+        <div>
+            <button id="loginButton"><i class="fas fa-sign-in-alt icon"></i>登录并获取课表</button>
+            <button id="loadButton"><i class="fas fa-file-import icon"></i>加载本地课表</button>
+        </div>
+        <div id="result"></div>
+        <div id="courseTable"></div>
+        <div id="noteSection"></div>
+    </div>
 
-    <!-- 在 script 标签之前添加这段 JavaScript -->
-    <!-- <script src="script.js"></script> -->
+    <div id="loadingIndicator" style="display: none;">
+        <i class="fas fa-spinner fa-spin icon"></i>正在登录，请稍候...
+    </div>
+
     <script src="renderer.js"></script>
-
-    <!-- 在 body 标签内，其他内容之前添加 -->
-    <div id="loadingIndicator" style="display: none;">正在登录，请稍候...</div>
 </body>
 
 </html>

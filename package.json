@@ -1,13 +1,52 @@
 {
-  "name": "hhu-electron-app",
+  "name": "hhu-cousrse",
   "version": "1.0.0",
   "description": "一个用于自动登录河海大学教务系统并获取课表信息的桌面应用程序",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "test": "mocha script.test.js"
+    "test": "mocha script.test.js",
+    "build": "electron-builder --config.win.signAndEditExecutable=false"
   },
-  "author": "你的名字",
+  "author": "Huijun",
+  "build": {
+    "appId": "com.hhu.course",
+    "win": {
+      "target": "nsis",
+      "icon": "tray-icon-big.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "./resources/",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "extraFiles": [
+      {
+        "from": "node_modules/puppeteer/.local-chromium",
+        "to": "chromium",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    }
+  },
   "license": "MIT",
   "dependencies": {
     "cheerio": "^1.0.0",
@@ -19,6 +58,7 @@
   "devDependencies": {
     "electron": "^25.9.8",
     "jsdom": "^25.0.1",
-    "mocha": "^10.7.3"
+    "mocha": "^10.7.3",
+    "electron-builder": "^25.0.5"
   }
 }

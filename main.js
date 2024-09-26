@@ -1,33 +1,117 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs').promises;
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+let mainWindow = null;
+let tray = null;
+// 设置应用程序图标
+if (process.platform === 'win32') {
+    app.setAppUserModelId(process.execPath);
+}
 function createWindow() {
-    const win = new BrowserWindow({
-        width: 1800,
-        height: 1200,
+    const { screen } = require('electron');
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.workAreaSize;
+    // 根据操作系统选择正确的图标文�?
+    let iconPath;
+    if (process.platform === 'win32') {
+        iconPath = path.join(__dirname, 'icons', 'icon-64.ico');
+    } else if (process.platform === 'darwin') {
+        iconPath = path.join(__dirname, 'icons', 'icon.icns');
+    } else {
+        iconPath = path.join(__dirname, 'icons', 'icon.png');
+    }
+    mainWindow = new BrowserWindow({
+        width: Math.min(1800, width * 0.9),  // �?800和屏幕宽�?0%中的较小�?
+        height: Math.min(1200, height * 0.9),  // �?200和屏幕高�?0%中的较小�?
         frame: false, // 设置为无边框模式
         titleBarStyle: 'hidden',
+        transparent: true, // 设置窗口为透明
+        backgroundColor: '#00ffffff', // 设置背景色为完全透明
+        icon: iconPath,  // 设置窗口图标
         webPreferences: {
             preload: path.join(__dirname, 'preload.js'),
             nodeIntegration: true,
             contextIsolation: false,
         },
     });
-    win.loadFile('index.html');
+    mainWindow.loadFile('index.html');
     // 当窗口加载完成时，检查并加载本地 JSON 文件
-    win.webContents.on('did-finish-load', async () => {
+    mainWindow.webContents.on('did-finish-load', async () => {
         try {
             const filePath = path.join(__dirname, 'course_info.json');
             await fs.access(filePath); // 检查文件是否存�?
             const data = await fs.readFile(filePath, 'utf8');
             const courseInfo = JSON.parse(data);
-            win.webContents.send('course-info', courseInfo);
+            mainWindow.webContents.send('course-info', courseInfo);
         } catch (error) {
             console.log('No local course_info.json found or error reading it:', error);
         }
     });
+    // 修改托盘创建逻辑
+    const icon = nativeImage.createFromPath(path.join(__dirname, 'icons', 'tray-icon.ico')).resize({ width: 16, height: 16 });
+    tray = new Tray(icon);
+    const contextMenu = Menu.buildFromTemplate([
+        { 
+            label: '显示', 
+            click: () => {
+                showMainWindow();
+            } 
+        },
+        { label: '退�?, click: () => {
+            app.quit();  // 直接调用 app.quit()，不需要设�?app.isQuitting
+        }}
+    ]);
+    tray.setToolTip('课程�?);
+    tray.setContextMenu(contextMenu);
+    tray.on('click', () => {
+        toggleMainWindow();
+    });
+    // 移除这段代码
+    /*
+    mainWindow.on('close', (event) => {
+        if (app.isQuitting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
+    */
+    // 添加这个新的 IPC 处理程序
+    ipcMain.on('quit-app', () => {
+        app.quit();
+    });
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+    // 当窗口被最小化时，隐藏窗口而不是最小化
+    mainWindow.on('minimize', (event) => {
+        event.preventDefault();
+        mainWindow.hide();
+    });
+}
+function showMainWindow() {
+    if (mainWindow === null) {
+        createWindow();
+    } else {
+        mainWindow.show();
+        mainWindow.focus();
+    }
+}
+function hideMainWindow() {
+    if (mainWindow == null) {
+        mainWindow.hide();
+    }
+}
+function toggleMainWindow() {
+    if (mainWindow === null) {
+        createWindow();
+    } else if (mainWindow.isVisible()) {
+        mainWindow.hide();
+    } else {
+        mainWindow.show();
+        mainWindow.focus();
+    }
 }
 app.whenReady().then(() => {
     createWindow();
@@ -191,18 +275,37 @@ const { protocol } = require('electron');
 protocol.registerSchemesAsPrivileged([
   { scheme: 'file', privileges: { secure: true, standard: true } }
 ]);
-// 添加以下代码来处理窗口控�?
+ipcMain.on('hide-window', () => {
+    hideMainWindow();
+});
+ipcMain.on('show-window', () => {
+    showMainWindow();
+});
+app.on('before-quit', () => {
+    app.isQuitting = true;
+});
+app.on('will-quit', () => {
+    if (tray) {
+        tray.destroy();
+    }
+});
+// 在文件顶部的 ipcMain 监听器部分添加以下代�?
 ipcMain.on('minimize-window', () => {
-    BrowserWindow.getFocusedWindow().minimize();
+    if (mainWindow) mainWindow.minimize();
 });
 ipcMain.on('maximize-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win.isMaximized()) {
-        win.unmaximize();
-    } else {
-        win.maximize();
+    if (mainWindow) {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
+        } else {
+            mainWindow.maximize();
+        }
     }
 });
 ipcMain.on('close-window', () => {
-    BrowserWindow.getFocusedWindow().close();
+    if (mainWindow) mainWindow.close();
+});
+// 添加这个新的 IPC 处理程序
+ipcMain.on('quit-app', () => {
+    app.quit();
 });

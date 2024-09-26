@@ -116,24 +116,24 @@ function displayCourseTable(courseInfo) {
                     cell.innerHTML = coursesForThisSlot.map(course => {
                         const isPast = isCoursePast(course, now);
                         const courseStatus = isPast ? 'past-course' : 'future-course';
-                        const statusText = isPast ? '<span class="course-status past">已上课</span>' : '<span class="course-status future">未上课</span>';
+                        const statusText = isPast ? '<span class="course-status past"><i class="fas fa-check-circle"></i> 已上课</span>' : '<span class="course-status future"><i class="fas fa-clock"></i> 未上课</span>';
 
                         return `
                             <div class="course-cell ${courseStatus} ${course === nextCourse ? 'next-course' : ''}">
-                                <strong>${course.name}</strong>${statusText}
+                                <strong><i class="fas fa-book icon"></i>${course.name}</strong>${statusText}
                                 <p>
-                                    ${getDetailInfo(course.details, '地点')}<br>
-                                    ${getDetailInfo(course.details, '周次')}
+                                    <i class="fas fa-map-marker-alt icon"></i>${getDetailInfo(course.details, '地点')}<br>
+                                    <i class="fas fa-calendar-week icon"></i>${getDetailInfo(course.details, '周次')}
                                 </p>
                                 <details>
-                                    <summary>详细信息</summary>
+                                    <summary><i class="fas fa-info-circle icon"></i>详细信息</summary>
                                     <table class="course-details">
-                                        <tr><td>课程号:</td><td>${course.code}</td></tr>
-                                        <tr><td>学分:</td><td>${getDetailInfo(course.details, '课程学分')}</td></tr>
-                                        <tr><td>类型:</td><td>${getDetailInfo(course.details, '课程属性')}</td></tr>
-                                        <tr><td>教学班:</td><td>${getDetailInfo(course.details, '教学班名')}</td></tr>
-                                        <tr><td>上课周次:</td><td>${getDetailInfo(course.details, '上课周次')}</td></tr>
-                                        <tr><td>上课地点:</td><td>${getDetailInfo(course.details, '上课地点')}</td></tr>
+                                        <tr><td><i class="fas fa-hashtag icon"></i>课程号:</td><td>${course.code}</td></tr>
+                                        <tr><td><i class="fas fa-star icon"></i>学分:</td><td>${getDetailInfo(course.details, '课程学分')}</td></tr>
+                                        <tr><td><i class="fas fa-tag icon"></i>类型:</td><td>${getDetailInfo(course.details, '课程属性')}</td></tr>
+                                        <tr><td><i class="fas fa-users icon"></i>教学班:</td><td>${getDetailInfo(course.details, '教学班名')}</td></tr>
+                                        <tr><td><i class="fas fa-calendar-alt icon"></i>上课周次:</td><td>${getDetailInfo(course.details, '上课周次')}</td></tr>
+                                        <tr><td><i class="fas fa-map-marked-alt icon"></i>上课地点:</td><td>${getDetailInfo(course.details, '上课地点')}</td></tr>
                                     </table>
                                 </details>
                             </div>
@@ -172,15 +172,16 @@ function getMonday(d) {
 }
 
 function isCoursePast(course, currentDate) {
-    const currentDayIndex = currentDate.getDay();
-    if (currentDayIndex > course.dayIndex) {
+    const currentDayIndex = currentDate.getDay() - 1; // 调整为0-6表示周一到周日
+    const currentTime = currentDate.getHours() * 60 + currentDate.getMinutes();
+
+    if (course.dayIndex < currentDayIndex) {
         return true;
-    } else if (currentDayIndex === course.dayIndex) {
-        const [startTime] = course.timeSlot.split('～')[0].split(' ');
+    } else if (course.dayIndex === currentDayIndex) {
+        const [startTime] = course.timeSlot.match(/\d{2}:\d{2}/);
         const [hours, minutes] = startTime.split(':').map(Number);
-        const courseTime = new Date(currentDate);
-        courseTime.setHours(hours, minutes, 0, 0);
-        return currentDate.getTime() >= courseTime.getTime();
+        const courseTime = hours * 60 + minutes;
+        return currentTime > courseTime;
     }
     return false;
 }
@@ -205,6 +206,8 @@ function findNextCourse(sortedCourses, currentDay, currentTime) {
     console.log('当前时间(分钟):', currentTime);
     console.log('课程列表:', sortedCourses);
 
+    const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1; // 调整为0-6表示周一到周日
+
     for (const course of sortedCourses) {
         const timeMatch = course.timeSlot.match(/(\d{2}:\d{2})～/);
         if (!timeMatch) {
@@ -219,8 +222,8 @@ function findNextCourse(sortedCourses, currentDay, currentTime) {
         console.log('课程星期:', course.dayIndex);
         console.log('课程时间(分钟):', courseTime);
 
-        if (course.dayIndex > currentDay - 1 || 
-            (course.dayIndex === currentDay - 1 && courseTime > currentTime)) {
+        if (course.dayIndex > adjustedCurrentDay || 
+            (course.dayIndex === adjustedCurrentDay && courseTime > currentTime)) {
             console.log('找到下一节课:', course.name);
             return course;
         }
@@ -301,5 +304,15 @@ document.getElementById('maximize-btn').addEventListener('click', () => {
 });
 
 document.getElementById('close-btn').addEventListener('click', () => {
-    ipcRenderer.send('close-window');
+    ipcRenderer.send('quit-app');
 });
+
+// 修改隐藏到托盘按钮的事件监听器
+document.getElementById('hide-to-tray-btn').addEventListener('click', () => {
+    ipcRenderer.send('hide-window');
+});
+
+// 如果需要，可以添加一个显示窗口的函数
+function showWindow() {
+    ipcRenderer.send('show-window');
+}
