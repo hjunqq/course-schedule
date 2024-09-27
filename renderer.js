@@ -97,13 +97,14 @@ function displayCourseTable(courseInfo, currentWeek) {
     
     // 创建表头
     const headerRow = table.insertRow();
-    ['节次', ...courseInfo.dates].forEach((day, index) => {
+    ['节次', ...getWeekDates(currentWeek)].forEach((dateString, index) => {
         const th = document.createElement('th');
         if (index === 0) {
-            th.textContent = day;
+            th.textContent = dateString;
         } else {
-            const dayOfWeek = getDayOfWeek(day);
-            th.innerHTML = `${dayOfWeek}<br>${day}`;
+            const dayOfWeek = getDayOfWeek(dateString);
+            const [, month, day] = dateString.split('-');
+            th.innerHTML = `${dayOfWeek}<br>${month}月${day}日`;
         }
         headerRow.appendChild(th);
     });
@@ -256,17 +257,12 @@ function isCoursePast(course, currentDate, selectedWeek) {
 
 function getDayOfWeek(dateString) {
     const days = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'];
-    const today = new Date();
-    const monday = new Date(today.setDate(today.getDate() - today.getDay() + 1));
-    const result = {};
-    
-    for (let i = 0; i < 7; i++) {
-        const currentDate = new Date(monday);
-        currentDate.setDate(monday.getDate() + i);
-        result[days[(i + 1) % 7]] = currentDate.toISOString().split('T')[0];
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) {
+        console.error('无效的日期字符串:', dateString);
+        return '无效日期';
     }
-    
-    return result[dateString] || '无效日期';
+    return days[date.getDay()];
 }
 
 function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
@@ -414,3 +410,22 @@ ipcRenderer.on('course-info-updated', (event, allCourseInfo) => {
     hideLoading();
     handleCourseInfo(allCourseInfo);
 });
+
+function getWeekDates(weekNumber) {
+    if (!semesterStart) {
+        console.error('学期开始日期未设置');
+        return Array(7).fill('未知日期');
+    }
+    
+    const weekStart = new Date(semesterStart);
+    weekStart.setDate(weekStart.getDate() + (weekNumber - 1) * 7);
+    
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(weekStart);
+        date.setDate(date.getDate() + i);
+        dates.push(date.toISOString().split('T')[0]); // 返回 'YYYY-MM-DD' 格式
+    }
+    
+    return dates;
+}

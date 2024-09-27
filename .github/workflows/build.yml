@@ -1,0 +1,87 @@
+name: 构建和发布应用
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: 设置 Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: 安装依赖
+      run: npm ci
+
+    - name: 构建应用
+      run: npm run build
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 上传构建产物
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.os }}-build
+        path: dist
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: 创建 Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Release ${{ github.ref }}
+        draft: false
+        prerelease: false
+
+    - name: 下载所有构建产物
+      uses: actions/download-artifact@v3
+
+    - name: 上传 Release 资产
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: .
+        asset_name: hhu-course-${{ github.ref }}.zip
+        asset_content_type: application/zip
+
+  update-version:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: 更新 version.json
+      run: |
+        echo '{
+          "version": "${{ github.ref_name }}",
+          "downloadUrl": "https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hhu-course-${{ github.ref_name }}.exe"
+        }' > version.json
+
+    - name: 提交 version.json 更新
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add version.json
+        git commit -m "更新 version.json 到 ${{ github.ref_name }}"
+        git push

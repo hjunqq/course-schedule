@@ -1,5 +1,5 @@
 {
-  "name": "hhu-cousrse",
+  "name": "hhu-course",
   "version": "1.0.0",
   "description": "一个用于自动登录河海大学教务系统并获取课表信息的桌面应用程序",
   "main": "main.js",
@@ -7,14 +7,16 @@
     "start": "electron .",
     "test": "mocha script.test.js",
     "build": "electron-builder --config.win.signAndEditExecutable=false",
-    "dev": "cross-env NODE_ENV=development electron ."
+    "dev": "cross-env NODE_ENV=development electron .",
+    "make": "electron-forge make"
   },
   "author": "Huijun",
   "build": {
     "appId": "com.hhu.course",
+    "icon": "icons/tray-icon-big.png",
     "win": {
-      "target": "nsis",
-      "icon": "tray-icon-big.png"
+      "target": "portable",
+      "icon": "icons/tray-icon-big.png"
     },
     "nsis": {
       "oneClick": false,
@@ -53,13 +55,15 @@
     "cheerio": "^1.0.0",
     "iconv-lite": "^0.6.3",
     "jschardet": "^3.0.0",
-    "puppeteer": "^23.4.0"
+    "puppeteer": "^23.4.0",
+    "semver": "^7.5.4"
   },
   "keywords": [],
   "devDependencies": {
+    "cross-env": "^7.0.3",
     "electron": "^25.9.8",
+    "electron-builder": "^25.0.5",
     "jsdom": "^25.0.1",
-    "mocha": "^10.7.3",
-    "electron-builder": "^25.0.5"
+    "mocha": "^10.7.3"
   }
 }

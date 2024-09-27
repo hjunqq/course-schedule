@@ -1,4 +1,6 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+const https = require('https');
+const semver = require('semver');
 const path = require('path');
 const fs = require('fs').promises;
 const puppeteer = require('puppeteer');
@@ -105,6 +107,43 @@ function createWindow() {
         }
         return false;
     });
+}
+function checkForUpdates() {
+    const options = {
+        hostname: 'raw.githubusercontent.com',
+        path: '/hjunqq/hhu-course/main/version.json',
+        method: 'GET'
+    };
+
+    const req = https.request(options, res => {
+        let data = '';
+
+        res.on('data', chunk => {
+            data += chunk;
+        });
+
+        res.on('end', () => {
+            const latestVersion = JSON.parse(data);
+            if (semver.gt(latestVersion.version, app.getVersion())) {
+                dialog.showMessageBox({
+                    type: 'info',
+                    title: '有新版本可用',
+                    message: `发现新版本 ${latestVersion.version}，是否更新？`,
+                    buttons: ['是', '否']
+                }).then(result => {
+                    if (result.response === 0) {
+                        require('electron').shell.openExternal(latestVersion.downloadUrl);
+                    }
+                });
+            }
+        });
+    });
+
+    req.on('error', error => {
+        console.error('检查更新时出错:', error);
+    });
+
+    req.end();
 }
 function showMainWindow() {
     if (mainWindow === null) {
