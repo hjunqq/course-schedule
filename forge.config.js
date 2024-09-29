@@ -1,19 +1,11 @@
 module.exports = {
-  packagerConfig: {
-    icon: './icons/tray-icon-big',
-    asar: true,
-    extraResource: [
-      './resources'
-    ]
-  },
-  rebuildConfig: {},
+  packagerConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: 'hhu-course',
-        iconUrl: 'https://url-to-your-icon.ico',
-        setupIcon: './icons/tray-icon-big.ico'
+        name: 'your_app_name',
+        setupExe: `${process.env.npm_package_name}-${process.env.npm_package_version} Setup.exe`
       }
     },
     {

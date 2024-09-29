@@ -40,12 +40,12 @@ function hideLoading() {
 }
 
 // 处理课程信息
-function handleCourseInfo(allCourseInfo) {
+async function handleCourseInfo(allCourseInfo) {
     console.log('收到课程信息:', allCourseInfo);
     const currentWeek = allCourseInfo.currentWeek;
     const courseInfo = allCourseInfo[currentWeek];
     if (courseInfo) {
-        displayCourseTable(courseInfo, currentWeek);
+        await displayCourseTable(courseInfo, currentWeek);
         hideLoading();
         showStatus(`第${currentWeek}周课程表加载成功`);
         
@@ -75,7 +75,7 @@ ipcRenderer.on('load-course-info-error', (event, message) => {
     }
 });
 
-function displayCourseTable(courseInfo, currentWeek) {
+async function displayCourseTable(courseInfo, currentWeek) {
     console.log('开始显示课程表');
     const tableDiv = document.getElementById('courseTable');
     tableDiv.innerHTML = '<h2>课程表</h2>';
@@ -241,7 +241,7 @@ function isCoursePast(course, currentDate, selectedWeek) {
     }
     
     // 如果是当前周的课,再根据具体时间判断
-    const currentDayIndex = currentDate.getDay() - 1; // 调整为0-6表示周一到周日
+    const currentDayIndex = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1; // 调整为0-6表示周一到周日
     const currentTime = currentDate.getHours() * 60 + currentDate.getMinutes();
 
     if (course.dayIndex < currentDayIndex) {
@@ -274,10 +274,7 @@ function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
     const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1; // 调整为0-6表示周一到周日
 
     for (const course of sortedCourses) {
-        const courseWeeks = getWeekRange(getDetailInfo(course.details, '上课周次'));
-        if (!courseWeeks.includes(currentWeek)) {
-            continue; // 跳过不在当前周的课程
-        }
+        // 本周课程表中的课程都是当前周的课程，无需额外检查
 
         const timeMatch = course.timeSlot.match(/(\d{2}:\d{2})～/);
         if (!timeMatch) {

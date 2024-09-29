@@ -1,7 +1,7 @@
 {
-  "name": "hhu-course",
-  "version": "1.0.0",
-  "description": "一个用于自动登录河海大学教务系统并获取课表信息的桌面应用程序",
+  "name": "your-app-name",
+  "version": "0.1.0",
+  "description": "Your app description",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
