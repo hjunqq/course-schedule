@@ -258,47 +258,69 @@ async function parseCourseInfo(html, selectedWeek) {
         return `${slotName} ${slotDetail}`;
     }).get();
     console.log('时间段信息:', timeSlots);
+
+    const uniqueCourses = new Set();
+
     $('.table-class').each((index, element) => {
         try {
             const courseElement = $(element);
-            const courseName = courseElement.find('h4').text().trim();
-            console.log('课程名称:', courseName);
-            const courseDetails = courseElement.find('ul li').map((i, li) => $(li).text().trim()).get();
+            const visibleInfo = courseElement.children('h4, ul');
             const suspensionInfo = courseElement.find('.suspension-table-class');
-            const courseInfo = suspensionInfo.find('ul li').map((i, li) => $(li).text().trim()).get();
+            const courseHeaders = suspensionInfo.find('h4');
+            const courseInfoLists = suspensionInfo.find('ul');
+
             // 从 class 属性中提取 day 信息
             const classAttr = courseElement.attr('class');
             const dayMatch = classAttr.match(/day(\d+)/);
             const dayIndex = dayMatch ? parseInt(dayMatch[1]) : 0;
+
             // 从 style 属性中提取 top 值的计算系数
             const styleAttr = courseElement.attr('style');
             const topMatch = styleAttr.match(/top:\s*calc\(\((\d+)/);
-            const timeSlotIndex = topMatch ? parseInt(topMatch[1]) : 0;
-            const courseNameMatch = courseName.match(/(.+)\(课程?(.+)-课序?(.+)\)/);
-            if (courseNameMatch) {
-                courses.push({
-                    name: courseNameMatch[1].trim(),
-                    code: courseNameMatch[2].trim(),
-                    sequenceNumber: courseNameMatch[3].trim(),
-                    details: courseDetails,
-                    credit: courseInfo[1] ? courseInfo[1].split('：')[1]?.trim() : '',
-                    type: courseInfo[2] ? courseInfo[2].split('：')[1]?.trim() : '',
-                    weeks: courseInfo[3] ? courseInfo[3].split('：')[1]?.trim() : '',
-                    location: courseInfo[4] ? courseInfo[4].split('：')[1]?.trim() : '',
-                    class: courseInfo[5] ? courseInfo[5].split('：')[1]?.trim() : '',
+            const timeSlotIndex = topMatch ? parseInt(topMatch[1]) - 1 : 0;
+
+            // 处理可能存在的多门课程
+            const visibleCourses = visibleInfo.length / 2;
+
+            for (let i = 0; i < visibleCourses; i++) {
+                const visibleHeader = $(visibleInfo[i * 2]).text().trim();
+                const visibleDetails = $(visibleInfo[i * 2 + 1]).find('li').map((_, li) => $(li).text().trim()).get();
+                
+                const suspensionHeader = $(courseHeaders[i]).text().trim();
+                const suspensionDetails = $(courseInfoLists[i]).find('li').map((_, li) => $(li).text().trim()).get();
+
+                const courseName = visibleHeader.split('(')[0];
+                const courseCode = visibleHeader.match(/课程号:(\d+)/)[1];
+
+                const course = {
+                    name: courseName,
+                    code: courseCode,
+                    sequenceNumber: visibleHeader.match(/课序号:(\w+)/)[1],
+                    weeks: visibleDetails[0].split(':')[1].trim(),
+                    location: visibleDetails[1].split(':')[1].trim(),
+                    class: visibleDetails[2].split(':')[1].trim(),
+                    credit: suspensionDetails[1].split(':')[1].trim(),
+                    type: suspensionDetails[2].split(':')[1].trim(),
                     dayIndex: dayIndex,
                     timeSlot: timeSlots[timeSlotIndex] || '',
                     timeSlotIndex: timeSlotIndex
-                });
-                console.log('成功添加课程:', courses[courses.length - 1]);
-            } else {
-                console.log('无法匹配课程名称:', courseName);
+                };
+
+                const courseKey = JSON.stringify(course);
+                if (!uniqueCourses.has(courseKey)) {
+                    uniqueCourses.add(courseKey);
+                    courses.push(course);
+                    console.log('成功添加课程:', course);
+                } else {
+                    console.log('跳过重复课程:', courseName);
+                }
             }
         } catch (error) {
             console.error('解析课程信息时出错', error);
         }
     });
     console.log('解析到的课程数量:', courses.length);
+
     // 解析备注信息
     let note = '';
     try {
@@ -307,10 +329,13 @@ async function parseCourseInfo(html, selectedWeek) {
     } catch (error) {
         console.error('解析备注信息时出错', error);
     }
+
     // 生成日期数组
     const dates = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-    // 添加当前周次信息 (默认值,将在更新时被覆盖)
+
+    // 添加当前周次信息
     const currentWeek = parseInt(selectedWeek);
+
     return { courses, note, dates, timeSlots, currentWeek };
 }
 ipcMain.on('load-course-info', async (event) => {

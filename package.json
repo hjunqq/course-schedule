@@ -1,7 +1,7 @@
 {
-  "name": "your-app-name",
-  "version": "0.1.0",
-  "description": "Your app description",
+  "name": "hhu-course",
+  "version": "0.1.1",
+  "description": "河海大学课程表",
   "main": "main.js",
   "scripts": {
     "start": "electron .",

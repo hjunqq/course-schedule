@@ -39,7 +39,7 @@ function hideLoading() {
     document.getElementById('loadingIndicator').style.display = 'none';
 }
 
-// 处理课程信息
+// 修改 handleCourseInfo 函数
 async function handleCourseInfo(allCourseInfo) {
     console.log('收到课程信息:', allCourseInfo);
     const currentWeek = allCourseInfo.currentWeek;
@@ -75,6 +75,7 @@ ipcRenderer.on('load-course-info-error', (event, message) => {
     }
 });
 
+// 修改 displayCourseTable 函数
 async function displayCourseTable(courseInfo, currentWeek) {
     console.log('开始显示课程表');
     const tableDiv = document.getElementById('courseTable');
@@ -95,15 +96,17 @@ async function displayCourseTable(courseInfo, currentWeek) {
 
     const table = document.createElement('table');
     
+    // 在 displayCourseTable 函数中修改创建表头的部分
     // 创建表头
     const headerRow = table.insertRow();
-    ['节次', ...getWeekDates(currentWeek)].forEach((dateString, index) => {
+    ['节次', ...courseInfo.dates].forEach((dateString, index) => {
         const th = document.createElement('th');
         if (index === 0) {
             th.textContent = dateString;
         } else {
-            const dayOfWeek = getDayOfWeek(dateString);
-            const [, month, day] = dateString.split('-');
+            const dayOfWeek = dateString;
+            const date = getWeekDates(currentWeek)[index - 1];
+            const [year, month, day] = date.split('-');
             th.innerHTML = `${dayOfWeek}<br>${month}月${day}日`;
         }
         headerRow.appendChild(th);
@@ -119,11 +122,7 @@ async function displayCourseTable(courseInfo, currentWeek) {
         if (a.dayIndex !== b.dayIndex) {
             return a.dayIndex - b.dayIndex;
         }
-        const [aStartTime] = a.timeSlot.match(/\d{2}:\d{2}/);
-        const [bStartTime] = b.timeSlot.match(/\d{2}:\d{2}/);
-        const [aHours, aMinutes] = aStartTime.split(':').map(Number);
-        const [bHours, bMinutes] = bStartTime.split(':').map(Number);
-        return (aHours * 60 + aMinutes) - (bHours * 60 + bMinutes);
+        return a.timeSlotIndex - b.timeSlotIndex;
     });
 
     // 找到下一节课
@@ -150,18 +149,18 @@ async function displayCourseTable(courseInfo, currentWeek) {
                             <div class="course-cell ${courseStatus} ${course === nextCourse ? 'next-course' : ''}">
                                 <strong><i class="fas fa-book icon"></i>${course.name}</strong>${statusText}
                                 <p>
-                                    <i class="fas fa-map-marker-alt icon"></i>${getDetailInfo(course.details, '地点')}<br>
-                                    <i class="fas fa-calendar-week icon"></i>${getDetailInfo(course.details, '周次')}
+                                    <i class="fas fa-map-marker-alt icon"></i>${course.location}<br>
+                                    <i class="fas fa-calendar-week icon"></i>${course.weeks}
                                 </p>
                                 <details>
                                     <summary><i class="fas fa-info-circle icon"></i>详细信息</summary>
                                     <table class="course-details">
                                         <tr><td><i class="fas fa-hashtag icon"></i>课程号:</td><td>${course.code}</td></tr>
-                                        <tr><td><i class="fas fa-star icon"></i>学分:</td><td>${getDetailInfo(course.details, '课程学分')}</td></tr>
-                                        <tr><td><i class="fas fa-tag icon"></i>类型:</td><td>${getDetailInfo(course.details, '课程属性')}</td></tr>
-                                        <tr><td><i class="fas fa-users icon"></i>教学班:</td><td>${getDetailInfo(course.details, '教学班名')}</td></tr>
-                                        <tr><td><i class="fas fa-calendar-alt icon"></i>上课周次:</td><td>${getDetailInfo(course.details, '上课周次')}</td></tr>
-                                        <tr><td><i class="fas fa-map-marked-alt icon"></i>上课地点:</td><td>${getDetailInfo(course.details, '上课地点')}</td></tr>
+                                        <tr><td><i class="fas fa-star icon"></i>学分:</td><td>${course.credit}</td></tr>
+                                        <tr><td><i class="fas fa-tag icon"></i>类型:</td><td>${course.type}</td></tr>
+                                        <tr><td><i class="fas fa-users icon"></i>教学班:</td><td>${course.class}</td></tr>
+                                        <tr><td><i class="fas fa-calendar-alt icon"></i>上课周次:</td><td>${course.weeks}</td></tr>
+                                        <tr><td><i class="fas fa-map-marked-alt icon"></i>上课地点:</td><td>${course.location}</td></tr>
                                     </table>
                                 </details>
                             </div>
@@ -265,6 +264,7 @@ function getDayOfWeek(dateString) {
     return days[date.getDay()];
 }
 
+// 修改 findNextCourse 函数
 function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
     console.log('当前星期:', currentDay);
     console.log('当前时间(分钟):', currentTime);
@@ -274,8 +274,6 @@ function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
     const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1; // 调整为0-6表示周一到周日
 
     for (const course of sortedCourses) {
-        // 本周课程表中的课程都是当前周的课程，无需额外检查
-
         const timeMatch = course.timeSlot.match(/(\d{2}:\d{2})～/);
         if (!timeMatch) {
             console.log('无法解析课程时间:', course.timeSlot);
@@ -316,6 +314,7 @@ function getWeekRange(weekString) {
     return weeks;
 }
 
+// 修改 displayNextCourseReminder 函数
 function displayNextCourseReminder(nextCourse, courseInfo, tableDiv) {
     if (!nextCourse) {
         console.log('没有下一节课');
@@ -324,8 +323,7 @@ function displayNextCourseReminder(nextCourse, courseInfo, tableDiv) {
     console.log('显示下一节课提醒:', nextCourse);
 
     // 获取下一节课的具体日期
-    const nextCourseDate = getDayOfWeek(courseInfo.dates[nextCourse.dayIndex]);
-    const formattedDate = new Date(nextCourseDate).toLocaleDateString('zh-CN', { month: 'long', day: 'numeric', weekday: 'long' });
+    const nextCourseDate = courseInfo.dates[nextCourse.dayIndex];
 
     const nextCourseDiv = document.createElement('div');
     nextCourseDiv.className = 'next-course-reminder';
@@ -333,8 +331,8 @@ function displayNextCourseReminder(nextCourse, courseInfo, tableDiv) {
         <div class="reminder-content">
             <strong>下一节课：</strong>
             <span>${nextCourse.name}</span>
-            <span>${formattedDate} ${nextCourse.timeSlot}</span>
-            <span>${getDetailInfo(nextCourse.details, '地点')}</span>
+            <span>${nextCourseDate} ${nextCourse.timeSlot}</span>
+            <span>${nextCourse.location}</span>
         </div>
     `;
     
