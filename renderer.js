@@ -1,5 +1,8 @@
 const { ipcRenderer } = require('electron');
 
+// 在文件顶部添加一个全局变量来存储当前显示的课程信息
+let currentDisplayedCourseInfo = null;
+
 document.getElementById('loginButton').addEventListener('click', () => {
     showLoading();
     ipcRenderer.send('start-login');
@@ -45,12 +48,16 @@ async function handleCourseInfo(allCourseInfo) {
     const currentWeek = allCourseInfo.currentWeek;
     const courseInfo = allCourseInfo[currentWeek];
     if (courseInfo) {
+        currentDisplayedCourseInfo = courseInfo; // 存储当前显示的课程信息
         await displayCourseTable(courseInfo, currentWeek);
         hideLoading();
         showStatus(`第${currentWeek}周课程表加载成功`);
         
         // 更新周次选择器的值
         document.getElementById('weekSelector').value = currentWeek;
+
+        // 启动自动更新
+        startAutoUpdate();
     } else {
         showStatus(`未找到第${currentWeek}周的课程信息`);
     }
@@ -74,6 +81,53 @@ ipcRenderer.on('load-course-info-error', (event, message) => {
         resultDiv.style.display = 'none';
     }
 });
+
+// 添加自动更新函数
+function startAutoUpdate() {
+    // 每分钟更新一次
+    setInterval(updateCourseStatus, 60000);
+}
+
+// 添加更新课程状态的函数
+function updateCourseStatus() {
+    if (!currentDisplayedCourseInfo) return;
+
+    const now = new Date();
+    const currentDay = now.getDay();
+    const currentTime = now.getHours() * 60 + now.getMinutes();
+    const currentWeek = getCurrentWeek();
+
+    // 更新课程状态
+    const courseElements = document.querySelectorAll('.course-cell');
+    courseElements.forEach(element => {
+        const courseData = JSON.parse(element.dataset.courseInfo);
+        const isPast = isCoursePast(courseData, now, currentWeek);
+        element.classList.toggle('past-course', isPast);
+        element.classList.toggle('future-course', !isPast);
+        const statusElement = element.querySelector('.course-status');
+        if (statusElement) {
+            statusElement.innerHTML = isPast 
+                ? '<span class="course-status past"><i class="fas fa-check-circle"></i> 已上课</span>' 
+                : '<span class="course-status future"><i class="fas fa-clock"></i> 未上课</span>';
+        }
+    });
+
+    // 更新下一节课提醒
+    const sortedCourses = currentDisplayedCourseInfo.courses.sort((a, b) => {
+        if (a.dayIndex !== b.dayIndex) {
+            return a.dayIndex - b.dayIndex;
+        }
+        return a.timeSlotIndex - b.timeSlotIndex;
+    });
+    const nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, currentWeek);
+    const reminderElement = document.querySelector('.next-course-reminder');
+    if (reminderElement) {
+        reminderElement.remove();
+    }
+    if (nextCourse) {
+        displayNextCourseReminder(nextCourse, currentDisplayedCourseInfo, document.getElementById('courseTable'));
+    }
+}
 
 // 修改 displayCourseTable 函数
 async function displayCourseTable(courseInfo, currentWeek) {
@@ -145,26 +199,30 @@ async function displayCourseTable(courseInfo, currentWeek) {
                         const courseStatus = isPast ? 'past-course' : 'future-course';
                         const statusText = isPast ? '<span class="course-status past"><i class="fas fa-check-circle"></i> 已上课</span>' : '<span class="course-status future"><i class="fas fa-clock"></i> 未上课</span>';
 
-                        return `
-                            <div class="course-cell ${courseStatus} ${course === nextCourse ? 'next-course' : ''}">
-                                <strong><i class="fas fa-book icon"></i>${course.name}</strong>${statusText}
-                                <p>
-                                    <i class="fas fa-map-marker-alt icon"></i>${course.location}<br>
-                                    <i class="fas fa-calendar-week icon"></i>${course.weeks}
-                                </p>
-                                <details>
-                                    <summary><i class="fas fa-info-circle icon"></i>详细信息</summary>
-                                    <table class="course-details">
-                                        <tr><td><i class="fas fa-hashtag icon"></i>课程号:</td><td>${course.code}</td></tr>
-                                        <tr><td><i class="fas fa-star icon"></i>学分:</td><td>${course.credit}</td></tr>
-                                        <tr><td><i class="fas fa-tag icon"></i>类型:</td><td>${course.type}</td></tr>
-                                        <tr><td><i class="fas fa-users icon"></i>教学班:</td><td>${course.class}</td></tr>
-                                        <tr><td><i class="fas fa-calendar-alt icon"></i>上课周次:</td><td>${course.weeks}</td></tr>
-                                        <tr><td><i class="fas fa-map-marked-alt icon"></i>上课地点:</td><td>${course.location}</td></tr>
-                                    </table>
-                                </details>
-                            </div>
+                        // 将课程信息存储在 data 属性中，以便后续更新
+                        const courseElement = document.createElement('div');
+                        courseElement.className = `course-cell ${courseStatus} ${course === nextCourse ? 'next-course' : ''}`;
+                        courseElement.dataset.courseInfo = JSON.stringify(course);
+
+                        courseElement.innerHTML = `
+                            <strong><i class="fas fa-book icon"></i>${course.name}</strong>${statusText}
+                            <p>
+                                <i class="fas fa-map-marker-alt icon"></i>${course.location}<br>
+                                <i class="fas fa-calendar-week icon"></i>${course.weeks}
+                            </p>
+                            <details>
+                                <summary><i class="fas fa-info-circle icon"></i>详细信息</summary>
+                                <table class="course-details">
+                                    <tr><td><i class="fas fa-hashtag icon"></i>课程号:</td><td>${course.code}</td></tr>
+                                    <tr><td><i class="fas fa-star icon"></i>学分:</td><td>${course.credit}</td></tr>
+                                    <tr><td><i class="fas fa-tag icon"></i>类型:</td><td>${course.type}</td></tr>
+                                    <tr><td><i class="fas fa-users icon"></i>教学班:</td><td>${course.class}</td></tr>
+                                    <tr><td><i class="fas fa-calendar-alt icon"></i>上课周次:</td><td>${course.weeks}</td></tr>
+                                    <tr><td><i class="fas fa-map-marked-alt icon"></i>上课地点:</td><td>${course.location}</td></tr>
+                                </table>
+                            </details>
                         `;
+                        return courseElement.outerHTML;
                     }).join('<hr>');
                 }
             }
