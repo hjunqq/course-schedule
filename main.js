@@ -5,6 +5,47 @@ const path = require('path');
 const fs = require('fs').promises;
 const puppeteer = require('puppeteer');
 const cheerio = require('cheerio');
+
+// 添加登录状态管理
+let loginCookies = null;
+let lastLoginTime = null;
+const LOGIN_EXPIRE_TIME = 2 * 60 * 60 * 1000; // 2小时过期
+
+// 加载保存的登录状态
+async function loadLoginState() {
+    try {
+        const loginStatePath = path.join(__dirname, 'login_state.json');
+        const data = await fs.readFile(loginStatePath, 'utf8');
+        const loginState = JSON.parse(data);
+        
+        // 检查是否过期
+        const now = Date.now();
+        if (loginState.lastLoginTime && (now - loginState.lastLoginTime) < LOGIN_EXPIRE_TIME) {
+            loginCookies = loginState.cookies;
+            lastLoginTime = loginState.lastLoginTime;
+            console.log('成功加载保存的登录状态');
+        } else {
+            console.log('保存的登录状态已过期');
+        }
+    } catch (error) {
+        console.log('没有找到保存的登录状态文件');
+    }
+}
+
+// 保存登录状态
+async function saveLoginState() {
+    try {
+        const loginStatePath = path.join(__dirname, 'login_state.json');
+        const loginState = {
+            cookies: loginCookies,
+            lastLoginTime: lastLoginTime
+        };
+        await fs.writeFile(loginStatePath, JSON.stringify(loginState, null, 2), 'utf8');
+        console.log('登录状态已保存到文件');
+    } catch (error) {
+        console.error('保存登录状态失败:', error);
+    }
+}
 let mainWindow = null;
 let tray = null;
 let configWindow = null;
@@ -170,6 +211,24 @@ function toggleMainWindow() {
 }
 app.whenReady().then(() => {
     createWindow();
+    
+    // 监控内存使用情况
+    setInterval(() => {
+        const memoryUsage = process.memoryUsage();
+        const memoryInMB = Math.round(memoryUsage.heapUsed / 1024 / 1024);
+        
+        // 如果内存使用超过200MB，发出警告
+        if (memoryInMB > 200) {
+            console.warn(`内存使用较高: ${memoryInMB}MB`);
+            
+            // 如果超过500MB，强制垃圾回收
+            if (memoryInMB > 500 && global.gc) {
+                console.log('执行垃圾回收');
+                global.gc();
+            }
+        }
+    }, 30000); // 每30秒检查一次
+    
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             createWindow();
@@ -181,68 +240,312 @@ app.on('window-all-closed', () => {
         app.quit();
     }
 });
-ipcMain.on('start-login', async (event) => {
-    let browser;
+// 删除原有的 start-login 函数
+
+// 修改 update-course-info 函数
+ipcMain.on('update-course-info', async (event, selectedWeek) => {
     try {
+        // 首先尝试读取本地数据
+        const filePath = path.join(__dirname, 'course_info.json');
+        let allCourseInfo = {};
+        try {
+            const data = await fs.readFile(filePath, 'utf8');
+            allCourseInfo = JSON.parse(data);
+        } catch (error) {
+            console.log('No existing course_info.json found or error reading it:', error);
+        }
+        
+        // 如果没有指定周次,则使用当前周
+        if (!selectedWeek) {
+            const configPath = path.join(__dirname, 'config.json');
+            const configData = await fs.readFile(configPath, 'utf8');
+            const config = JSON.parse(configData);
+            const semesterStart = new Date(config.semesterStart);
+            const now = new Date();
+            const diffTime = Math.abs(now - semesterStart);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            let calculatedWeek = Math.ceil(diffDays / 7);
+            
+            // 如果计算出的周次超过了合理范围（比如超过20周），则使用默认值
+            if (calculatedWeek > 20) {
+                console.log(`计算出的周次${calculatedWeek}超出合理范围，使用默认第7周`);
+                selectedWeek = '7';
+            } else {
+                selectedWeek = calculatedWeek.toString();
+            }
+        }
+
+        // 检查是否已有所选周次的数据
+        if (allCourseInfo[selectedWeek]) {
+            console.log(`使用本地缓存的第${selectedWeek}周课程信息`);
+            allCourseInfo.currentWeek = parseInt(selectedWeek);
+            
+            // 检查是否有有效的课程数据
+            if (allCourseInfo[selectedWeek].courses && allCourseInfo[selectedWeek].courses.length > 0) {
+                event.reply('course-info-updated', allCourseInfo);
+            } else {
+                console.log(`第${selectedWeek}周的缓存数据为空，发送空课表信号`);
+                event.reply('course-info-empty', { week: selectedWeek, message: `第${selectedWeek}周没有课程安排` });
+            }
+            return;
+        }
+
+        // 如果本地没有数据,则进行网络抓取
+        console.log(`本地没有第${selectedWeek}周的数据,开始网络抓取`);
         const configPath = path.join(__dirname, 'config.json');
         const configData = await fs.readFile(configPath, 'utf8');
         const config = JSON.parse(configData);
-        browser = await puppeteer.launch({
-            headless: true, // ?headless 设置?true，使浏览器在后台运行
-            args: ['--no-sandbox', '--disable-setuid-sandbox'] // 添加这些参数以确保在某些环境中正常运?
-        });
-        const page = await browser.newPage();
-        await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
-            waitUntil: 'networkidle2',
-            timeout: 60000
-        });
-        await page.type('#username', config.username);
-        await page.type('#password', config.password);
-        const loginButtonSelector = '.auth_login_btn.primary.full_width';
-        await page.waitForSelector(loginButtonSelector);
-        await page.click(loginButtonSelector);
-        await page.waitForNavigation({
-            waitUntil: 'networkidle2',
-            timeout: 60000
-        });
-        const cookies = await page.cookies();
-        const iPlanetDirectoryPro = cookies.find(cookie => cookie.name === 'iPlanetDirectoryPro');
-        if (iPlanetDirectoryPro) {
-            await page.goto('http://jwxt.hhu.edu.cn/sso.jsp', {
-                waitUntil: 'networkidle2',
-                timeout: 60000
-            });
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            await page.goto('http://jwxt.hhu.edu.cn/jsxsd/framework/jsdPerson_hehdx.htmlx', {
-                waitUntil: 'networkidle2',
-                timeout: 60000
-            });
-            await page.waitForSelector('.xsdPerson', { timeout: 60000 });
-            await page.waitForSelector('.xsdPerson .table-class', { timeout: 60000 });
-            const pageContent = await page.content();
-            await fs.writeFile('course_table.html', pageContent);
-            const courseInfo = await parseCourseInfo(pageContent);
-            if (courseInfo.courses.length === 0) {
-                throw new Error('未能解析到任何课程信息');
-            }
-            // 将解析结果保存为 JSON 文件
-            await fs.writeFile('course_info.json', JSON.stringify(courseInfo, null, 2), 'utf8');
-            console.log('课程信息已保存到 course_info.json 文件');
-            event.reply('login-result', '登录成功，课表信息已解析并保存');
-            event.reply('course-info', courseInfo);
+        
+        // 加载保存的登录状态
+        await loadLoginState();
+        
+        // 检查登录状态是否过期
+        const now = Date.now();
+        const isLoginExpired = !lastLoginTime || (now - lastLoginTime) > LOGIN_EXPIRE_TIME;
+        
+        if (isLoginExpired) {
+            console.log('登录状态已过期或不存在，需要重新登录');
+            loginCookies = null;
+            lastLoginTime = null;
         } else {
-            event.reply('login-result', '登录失败');
+            console.log('使用缓存的登录状态');
+        }
+        let browser;
+        // 添加超时控制
+        const browserLaunchTimeout = setTimeout(() => {
+            console.error('浏览器启动超时');
+            event.reply('load-course-info-error', '浏览器启动超时，请重试');
+            return;
+        }, 60000); // 60秒超时
+
+        try {
+            // 首先尝试使用 Puppeteer 自带的 Chrome
+            browser = await puppeteer.launch({
+                headless: true,
+                args: [
+                    '--no-sandbox', 
+                    '--disable-setuid-sandbox', 
+                    '--disable-dev-shm-usage',
+                    '--disable-background-timer-throttling',
+                    '--disable-backgrounding-occluded-windows',
+                    '--disable-renderer-backgrounding',
+                    '--disable-features=TranslateUI',
+                    '--disable-ipc-flooding-protection',
+                    '--memory-pressure-off'
+                ]
+            });
+            clearTimeout(browserLaunchTimeout);
+        } catch (error) {
+            console.log('使用 Puppeteer 自带 Chrome 失败，尝试使用系统 Chrome');
+            try {
+                // 如果失败，使用系统安装的 Chrome
+                browser = await puppeteer.launch({
+                    headless: true,
+                    executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+                    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                });
+            } catch (systemError) {
+                console.log('系统 Chrome 也失败，尝试其他可能的路径');
+                // 尝试其他可能的 Chrome 路径
+                const possiblePaths = [
+                    'C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe',
+                    'C:\\Users\\' + require('os').userInfo().username + '\\AppData\\Local\\Google\\Chrome\\Application\\chrome.exe'
+                ];
+                
+                let browserLaunched = false;
+                for (const chromePath of possiblePaths) {
+                    try {
+                        browser = await puppeteer.launch({
+                            headless: true,
+                            executablePath: chromePath,
+                            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                        });
+                        console.log(`成功使用 Chrome 路径: ${chromePath}`);
+                        browserLaunched = true;
+                        break;
+                    } catch (pathError) {
+                        console.log(`路径 ${chromePath} 失败`);
+                    }
+                }
+                
+                if (!browserLaunched) {
+                    throw new Error('无法启动任何 Chrome 浏览器');
+                }
+            }
+        }
+        const page = await browser.newPage();
+        
+        // 设置用户代理以避免被识别为自动化工具
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
+        
+        // 如果有缓存的登录状态，先设置 cookies
+        if (loginCookies && !isLoginExpired) {
+            console.log('设置缓存的登录 cookies...');
+            try {
+                await page.setCookie(...loginCookies);
+                console.log('成功设置缓存的登录状态');
+            } catch (error) {
+                console.log('设置缓存登录状态失败，将重新登录:', error);
+                loginCookies = null;
+                lastLoginTime = null;
+            }
+        }
+        
+        console.log('开始登录过程...');
+        
+        // 登录过程
+        let needLogin = !loginCookies || isLoginExpired;
+        
+        try {
+            await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
+                waitUntil: 'networkidle2',
+                timeout: 30000
+            });
+            
+            // 检查是否已经登录（通过检查当前URL或页面内容）
+            const currentUrl = page.url();
+            if (currentUrl.includes('my.hhu.edu.cn') || currentUrl.includes('portal-web')) {
+                console.log('检测到已登录状态，跳过登录流程');
+                needLogin = false;
+            }
+            
+            if (needLogin) {
+                console.log('页面加载完成，开始输入用户名和密码...');
+                
+                await page.waitForSelector('#username', { timeout: 10000 });
+                await page.type('#username', config.username, { delay: 100 });
+                
+                await page.waitForSelector('#password', { timeout: 10000 });
+                await page.type('#password', config.password, { delay: 100 });
+                
+                const loginButtonSelector = '.auth_login_btn.primary.full_width';
+                await page.waitForSelector(loginButtonSelector, { timeout: 10000 });
+                
+                console.log('点击登录按钮...');
+                await page.click(loginButtonSelector);
+                
+                await page.waitForNavigation({
+                    waitUntil: 'networkidle2',
+                    timeout: 30000
+                });
+                
+                console.log('登录成功，已跳转');
+                
+                // 保存登录状态
+                const cookies = await page.cookies();
+                loginCookies = cookies;
+                lastLoginTime = Date.now();
+                console.log('已保存登录状态到内存');
+                
+                // 异步保存到文件
+                saveLoginState();
+            } else {
+                console.log('使用已有登录状态');
+            }
+        } catch (loginError) {
+            console.error('登录过程中发生错误:', loginError);
+            // 清除可能无效的登录状态
+            loginCookies = null;
+            lastLoginTime = null;
+            await browser.close();
+            throw new Error('登录失败: ' + loginError.message);
+        }
+
+        const cookies = await page.cookies();
+        const iPlanetDirectoryPro = cookies.find(cookie => cookie.name === 'iPlanetDirectoryPro') || 
+                                   cookies.find(cookie => cookie.name.includes('JSESSIONID')) ||
+                                   cookies.find(cookie => cookie.name.includes('iPlanet'));
+        if (iPlanetDirectoryPro) {
+            console.log('获取到登录凭证，访问课程表页面...');
+            
+            try {
+                // 访问SSO页面
+                await page.goto('http://jwxt.hhu.edu.cn/sso.jsp', {
+                    waitUntil: 'networkidle2',
+                    timeout: 30000
+                });
+                
+                console.log('SSO页面访问成功，等待重定向...');
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                // 访问具体的课程表页面
+                console.log(`正在获取第${selectedWeek}周的课程信息...`);
+                await page.goto(`http://jwxt.hhu.edu.cn/jsxsd/framework/jsdPerson_hehdx.htmlx?xkzc=${selectedWeek}`, {
+                    waitUntil: 'networkidle2',
+                    timeout: 30000
+                });
+                
+                // 等待页面元素加载
+                await page.waitForSelector('.xsdPerson', { timeout: 30000 });
+                console.log('课程表页面加载完成');
+                
+                // 检查是否有课程数据
+                const hasCourseData = await page.$('.xsdPerson .table-class');
+                if (!hasCourseData) {
+                    console.log(`第${selectedWeek}周没有课程数据`);
+                    // 保存空的课程信息到缓存，避免重复获取
+                    const emptyCourseInfo = {
+                        courses: [],
+                        note: '',
+                        dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+                        timeSlots: [],
+                        currentWeek: parseInt(selectedWeek)
+                    };
+                    allCourseInfo[selectedWeek] = emptyCourseInfo;
+                    allCourseInfo.currentWeek = parseInt(selectedWeek);
+                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+                    
+                    event.reply('course-info-empty', { week: selectedWeek, message: `第${selectedWeek}周没有课程安排` });
+                    await browser.close();
+                    return;
+                }
+                
+                const pageContent = await page.content();
+                const courseInfo = await parseCourseInfo(pageContent, selectedWeek);
+                
+                if (courseInfo.courses.length === 0) {
+                    console.log(`第${selectedWeek}周解析出的课程数量为0`);
+                    // 保存空的课程信息到缓存
+                    allCourseInfo[selectedWeek] = courseInfo;
+                    allCourseInfo.currentWeek = parseInt(selectedWeek);
+                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+                    
+                    event.reply('course-info-empty', { week: selectedWeek, message: `第${selectedWeek}周没有课程安排` });
+                } else {
+                    // 更新特定周次的课程信息
+                    allCourseInfo[selectedWeek] = courseInfo;
+                    allCourseInfo.currentWeek = parseInt(selectedWeek);
+                    
+                    // 更新 JSON 文件
+                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+                    console.log(`第${selectedWeek}周课程信息已更新并保存到 course_info.json 文件，共${courseInfo.courses.length}门课程`);
+                    event.reply('course-info-updated', allCourseInfo);
+                }
+            } catch (courseError) {
+                console.error('获取课程信息时发生错误:', courseError);
+                event.reply('load-course-info-error', '获取课程信息失败: ' + courseError.message);
+            }
+        } else {
+            console.log('未获取到有效的登录凭证');
+            event.reply('load-course-info-error', '登录失败，未获取到有效凭证');
         }
         await browser.close();
-    } catch (error) {
-        console.error('登录过程中发生错误', error);
-        if (error.name === 'TimeoutError') {
-            console.error('页面加载超时。当前URL:', await page.url());
+        
+        // 强制垃圾回收（如果可用）
+        if (global.gc) {
+            global.gc();
         }
-        event.reply('login-result', '登录过程中发生错误 ' + error.message);
-    } finally {
+    } catch (error) {
+        console.error('更新课程信息时发生错误', error);
+        event.reply('load-course-info-error', '更新课程信息时发生错误 ' + error.message);
+        
+        // 确保浏览器被关闭
         if (browser) {
-            await browser.close();
+            try {
+                await browser.close();
+            } catch (closeError) {
+                console.error('关闭浏览器时出错:', closeError);
+            }
         }
     }
 });
@@ -277,7 +580,7 @@ async function parseCourseInfo(html, selectedWeek) {
             // 从 style 属性中提取 top 值的计算系数
             const styleAttr = courseElement.attr('style');
             const topMatch = styleAttr.match(/top:\s*calc\(\((\d+)/);
-            const timeSlotIndex = topMatch ? parseInt(topMatch[1]) - 1 : 0;
+            const timeSlotIndex = topMatch ? parseInt(topMatch[1]) : 0;
 
             // 处理可能存在的多门课程
             const visibleCourses = visibleInfo.length / 2;
@@ -290,17 +593,23 @@ async function parseCourseInfo(html, selectedWeek) {
                 const suspensionDetails = $(courseInfoLists[i]).find('li').map((_, li) => $(li).text().trim()).get();
 
                 const courseName = visibleHeader.split('(')[0];
-                const courseCode = visibleHeader.match(/课程号:(\d+)/)[1];
+                const courseCodeMatch = visibleHeader.match(/课程号:(\d+)/);
+                const sequenceNumberMatch = visibleHeader.match(/课序号:(\w+)/);
+                
+                if (!courseCodeMatch || !sequenceNumberMatch) {
+                    console.log('跳过无效课程数据:', visibleHeader);
+                    continue;
+                }
 
                 const course = {
                     name: courseName,
-                    code: courseCode,
-                    sequenceNumber: visibleHeader.match(/课序号:(\w+)/)[1],
-                    weeks: visibleDetails[0].split(':')[1].trim(),
-                    location: visibleDetails[1].split(':')[1].trim(),
-                    class: visibleDetails[2].split(':')[1].trim(),
-                    credit: suspensionDetails[1].split(':')[1].trim(),
-                    type: suspensionDetails[2].split(':')[1].trim(),
+                    code: courseCodeMatch[1],
+                    sequenceNumber: sequenceNumberMatch[1],
+                    weeks: (visibleDetails[0] && visibleDetails[0].includes(':')) ? visibleDetails[0].split(':')[1].trim() : '',
+                    location: (visibleDetails[1] && visibleDetails[1].includes(':')) ? visibleDetails[1].split(':')[1].trim() : '',
+                    class: (visibleDetails[2] && visibleDetails[2].includes(':')) ? visibleDetails[2].split(':')[1].trim() : '',
+                    credit: (suspensionDetails[1] && suspensionDetails[1].includes(':')) ? suspensionDetails[1].split(':')[1].trim() : '',
+                    type: (suspensionDetails[2] && suspensionDetails[2].includes(':')) ? suspensionDetails[2].split(':')[1].trim() : '',
                     dayIndex: dayIndex,
                     timeSlot: timeSlots[timeSlotIndex] || '',
                     timeSlotIndex: timeSlotIndex
@@ -351,80 +660,6 @@ ipcMain.on('load-course-info', async (event) => {
     } catch (error) {
         console.error('加载本地课表时发生错误', error);
         event.reply('load-course-info-error', '加载本地课表时发生错误 ' + error.message);
-    }
-});
-ipcMain.on('update-course-info', async (event, selectedWeek) => {
-    try {
-        // 首先尝试读取本地数据
-        const filePath = path.join(__dirname, 'course_info.json');
-        let allCourseInfo = {};
-        try {
-            const data = await fs.readFile(filePath, 'utf8');
-            allCourseInfo = JSON.parse(data);
-        } catch (error) {
-            console.log('No existing course_info.json found or error reading it:', error);
-        }
-        // 检查是否已有所选周次的数据
-        if (allCourseInfo[selectedWeek]) {
-            console.log(`使用本地缓存的第${selectedWeek}周课程信息`);
-            allCourseInfo.currentWeek = parseInt(selectedWeek);
-            event.reply('course-info-updated', allCourseInfo);
-            return;
-        }
-        // 如果本地没有数据,则进行网络抓取
-        console.log(`本地没有第${selectedWeek}周的数据,开始网络抓取`);
-        const configPath = path.join(__dirname, 'config.json');
-        const configData = await fs.readFile(configPath, 'utf8');
-        const config = JSON.parse(configData);
-        const browser = await puppeteer.launch({
-            headless: true,
-            args: ['--no-sandbox', '--disable-setuid-sandbox']
-        });
-        const page = await browser.newPage();
-        // 登录过程 (可以复用之前的登录代码)
-        await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
-            waitUntil: 'networkidle2',
-            timeout: 60000
-        });
-        await page.type('#username', config.username);
-        await page.type('#password', config.password);
-        const loginButtonSelector = '.auth_login_btn.primary.full_width';
-        await page.waitForSelector(loginButtonSelector);
-        await page.click(loginButtonSelector);
-        await page.waitForNavigation({
-            waitUntil: 'networkidle2',
-            timeout: 60000
-        });
-        const cookies = await page.cookies();
-        const iPlanetDirectoryPro = cookies.find(cookie => cookie.name === 'iPlanetDirectoryPro');
-        if (iPlanetDirectoryPro) {
-            await page.goto('http://jwxt.hhu.edu.cn/sso.jsp', {
-                waitUntil: 'networkidle2',
-                timeout: 60000
-            });
-            await new Promise(resolve => setTimeout(resolve, 5000));
-            await page.goto(`http://jwxt.hhu.edu.cn/jsxsd/framework/jsdPerson_hehdx.htmlx?xkzc=${selectedWeek}`, {
-                waitUntil: 'networkidle2',
-                timeout: 60000
-            });
-            await page.waitForSelector('.xsdPerson', { timeout: 60000 });
-            await page.waitForSelector('.xsdPerson .table-class', { timeout: 60000 });
-            const pageContent = await page.content();
-            const courseInfo = await parseCourseInfo(pageContent, selectedWeek);
-            // 更新特定周次的课程信息
-            allCourseInfo[selectedWeek] = courseInfo;
-            allCourseInfo.currentWeek = parseInt(selectedWeek);
-            // 更新 JSON 文件
-            await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
-            console.log(`第${selectedWeek}周课程信息已更新并保存到 course_info.json 文件`);
-            event.reply('course-info-updated', allCourseInfo);
-        } else {
-            event.reply('load-course-info-error', '登录失败');
-        }
-        await browser.close();
-    } catch (error) {
-        console.error('更新课程信息时发生错误', error);
-        event.reply('load-course-info-error', '更新课程信息时发生错误 ' + error.message);
     }
 });
 const { protocol } = require('electron');
@@ -511,6 +746,11 @@ ipcMain.on('save-config', async (event, config) => {
         const configPath = path.join(__dirname, 'config.json');
         await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
         event.reply('config-saved', '配置保存成功');
+        
+        // 通知主窗口配置已更新
+        if (mainWindow) {
+            mainWindow.webContents.send('config-updated');
+        }
     } catch (error) {
         console.error('保存配置时发生错误', error);
         event.reply('config-saved', '保存配置失败: ' + error.message);

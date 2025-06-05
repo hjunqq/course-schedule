@@ -1,0 +1,796 @@
+<html><head>
+	<meta charset="UTF-8">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<title>教学一体化服务平台</title>
+	<link rel="stylesheet" href="/jsxsd/css/hehdx/jsdPerson.css">
+	<link rel="stylesheet" type="text/css" href="/jsxsd/js/My97DatePicker/skin/WdatePicker.css">
+	<script type="text/javascript" src="/jsxsd/js/My97DatePicker/WdatePicker.js"></script><link href="/jsxsd/js/My97DatePicker/skin/WdatePicker.css" rel="stylesheet" type="text/css">
+	<script type="text/javascript" src="/jsxsd/js/calendar.js"></script></head><body><div id="ContainerPanel" style="display:none;"><div id="calendarPanel" style="position: absolute;display: none;z-index: 9999;background-color: #FFFFFF;border: 1px solid #CCCCCC;width:175px;font-size:12px;margin-left:25px;"></div></div>
+
+
+
+
+
+<div class="xsdPerson">
+	<div class="classTable">
+		<div class="card-header">
+			<h2>我的课表</h2>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #467be7;"></div>必修
+				</div>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #ff781e;"></div>限选
+				</div>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #3c6ae0;"></div>任选
+				</div>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #f05644;"></div>公选
+				</div>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #17a45c;"></div>选修
+				</div>
+			
+				<div style="align-items: center;display: flex;">
+					<div style="height: 10px;width: 10px;background: #1f93ed;"></div>辅修
+				</div>
+			
+			<div class="card-header-right">
+				<div class="classTable-select">
+					<div>
+						<iconpark-icon name="rili" icon-id="" size="1em"></iconpark-icon>
+						<span>
+							2024-10-16
+						</span>
+						<iconpark-icon name="xiala" icon-id="" size="1em"></iconpark-icon>
+					</div>
+					<input name="xzrq" id="xzrq" type="text" class="show form-control required input-wdatepicker" style="width:125px" value="2024-10-16" maxlength="20" readonly="readonly" onclick="WdatePicker({ dateFmt: 'yyyy-MM-dd',onpicked:refKb,readOnly: true })">
+
+				</div>
+				<div class="classTable-select">
+					<div>
+                            <span id="kbjcmsidshow">默认节次模式</span>
+						<iconpark-icon name="xiala" icon-id="" size="1em"></iconpark-icon>
+					</div>
+					<select name="kbjcmsid" id="kbjcmsid" onchange="refKb('zc')">
+						
+							<option value="DFD745B5C7D94A929D63114EDA1B39C9">默认节次模式</option>
+						
+					</select>
+				</div>
+				<div class="classTable-select">
+					<div>
+                         <span id="showzc">第7周</span>
+						<iconpark-icon name="xiala" icon-id="" size="1em"></iconpark-icon>
+					</div>
+					<select name="xkzc" id="xkzc" onchange="refKb('zc')">
+						<option value="all">全部</option>
+						
+							<option value="1">第1周</option>
+						
+							<option value="2">第2周</option>
+						
+							<option value="3">第3周</option>
+						
+							<option value="4">第4周</option>
+						
+							<option value="5">第5周</option>
+						
+							<option value="6">第6周</option>
+						
+							<option value="7">第7周</option>
+						
+							<option value="8">第8周</option>
+						
+							<option value="9">第9周</option>
+						
+							<option value="10">第10周</option>
+						
+							<option value="11">第11周</option>
+						
+							<option value="12">第12周</option>
+						
+							<option value="13">第13周</option>
+						
+							<option value="14">第14周</option>
+						
+							<option value="15">第15周</option>
+						
+							<option value="16">第16周</option>
+						
+							<option value="17">第17周</option>
+						
+							<option value="18">第18周</option>
+						
+							<option value="19">第19周</option>
+						
+							<option value="20">第20周</option>
+						
+					</select>
+				</div>
+			</div>
+		</div>
+		<div class="table-content">
+			<ul class="table-header">
+				<li class="table-header-one">
+					<span>节次</span>
+				</li>
+
+				
+					<li>
+						<span>周一</span>
+						<span>10-14</span>
+					</li>
+				
+					<li>
+						<span>周二</span>
+						<span>10-15</span>
+					</li>
+				
+					<li>
+						<span>周三</span>
+						<span>10-16</span>
+					</li>
+				
+					<li>
+						<span>周四</span>
+						<span>10-17</span>
+					</li>
+				
+					<li>
+						<span>周五</span>
+						<span>10-18</span>
+					</li>
+				
+					<li>
+						<span>周六</span>
+						<span>10-19</span>
+					</li>
+				
+					<li>
+						<span>周日</span>
+						<span>10-20</span>
+					</li>
+				
+				
+			</ul>
+			<div class="table-body">
+				
+					<ul>
+						<li class="row-one">
+							<h5>第一大节</h5>
+							<span>（0102小节）</span>
+							<span><iconpark-icon name="shijian" icon-id="" size="1em"></iconpark-icon>08:00～09:35</span>
+						</li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+					</ul>
+				
+					<ul>
+						<li class="row-one">
+							<h5>第二大节</h5>
+							<span>（030405小节）</span>
+							<span><iconpark-icon name="shijian" icon-id="" size="1em"></iconpark-icon>09:50～12:15</span>
+						</li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+					</ul>
+				
+					<ul>
+						<li class="row-one">
+							<h5>第三大节</h5>
+							<span>（0607小节）</span>
+							<span><iconpark-icon name="shijian" icon-id="" size="1em"></iconpark-icon>14:00～15:35</span>
+						</li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+					</ul>
+				
+					<ul>
+						<li class="row-one">
+							<h5>第四大节</h5>
+							<span>（0809小节）</span>
+							<span><iconpark-icon name="shijian" icon-id="" size="1em"></iconpark-icon>15:50～17:25</span>
+						</li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+					</ul>
+				
+					<ul>
+						<li class="row-one">
+							<h5>第五大节</h5>
+							<span>（101112小节）</span>
+							<span><iconpark-icon name="shijian" icon-id="" size="1em"></iconpark-icon>18:30～20:55</span>
+						</li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+						<li></li>
+					</ul>
+				
+
+				<!----课表备注----->
+				<ul>
+					<li class="row-one">
+						<h5>备注</h5>
+					</li>
+					<li>
+						<span style="color:red;font-size: 13px;">智慧水利平台架构与开发课程设计  齐慧君  19-20周;</span>
+					</li>
+				</ul>
+
+				
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day0 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((2 * 95px) + 2px);">
+					<h4>三维协同设计与BIM技术(课程号:0201180-课序号:N02)</h4> <ul><li>周次:第4-5,7-9周 </li><li>地点:北教102 </li><li>教学班名:水工大禹21班,水工21-[5-7]班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>三维协同设计与BIM技术(课序号:N02)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-5,7-9周 1[06-07节]</li><li>上课地点:北教102 </li><li>教学班名:水工大禹21班,水工21-[5-7]班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day1 xqcolor0" style="height: calc(1 * 95px - 4px);top: calc((1 * 95px) + 2px);">
+					<h4>智慧水利平台架构与开发(课程号:0204210-课序号:N01)</h4> <ul><li>周次:第2-15周 </li><li>地点:致用楼503 </li><li>教学班名:智水22-1班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>智慧水利平台架构与开发(课序号:N01)</h4> <ul><li>课程号:0204210</li><li>课程学分:3.5 </li><li>课程属性:必修 </li><li>上课周次:第2-15周 2[03-04节]</li><li>上课地点:致用楼503 </li><li>教学班名:智水22-1班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day1 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((2 * 95px) + 2px);">
+					<h4>三维协同设计与BIM技术(课程号:0201180-课序号:N01)</h4> <ul><li>周次:第4-9周 </li><li>地点:科学会堂101 </li><li>教学班名:水工21-[1-4]班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>三维协同设计与BIM技术(课序号:N01)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-9周 2[06-07节]</li><li>上课地点:科学会堂101 </li><li>教学班名:水工21-[1-4]班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day1 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((3 * 95px) + 2px);">
+					<h4>三维协同设计与BIM技术(课程号:0201180-课序号:N08)</h4> <ul><li>周次:第4-9周 </li><li>地点:致高楼A404 </li><li>教学班名:智水22-1班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>三维协同设计与BIM技术(课序号:N08)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-9周 2[08-09节]</li><li>上课地点:致高楼A404 </li><li>教学班名:智水22-1班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day3 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((1 * 95px) + 2px);">
+					<h4>三维协同设计与BIM技术(课程号:0201180-课序号:N02)</h4> <ul><li>周次:第4-9周 </li><li>地点:北教102 </li><li>教学班名:水工大禹21班,水工21-[5-7]班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>三维协同设计与BIM技术(课序号:N02)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-9周 4[03-04节]</li><li>上课地点:北教102 </li><li>教学班名:水工大禹21班,水工21-[5-7]班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day3 xqcolor0" style="height: calc(1 * 95px - 4px);top: calc((2 * 95px) + 2px);">
+					<h4>安全工程导论(课程号:0205001-课序号:N01)</h4> <ul><li>周次:第6-13周 </li><li>地点:致高楼A512 </li><li>教学班名:安工24-1班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>安全工程导论(课序号:N01)</h4> <ul><li>课程号:0205001</li><li>课程学分:1 </li><li>课程属性:必修 </li><li>上课周次:第6-13周 4[06-07节]</li><li>上课地点:致高楼A512 </li><li>教学班名:安工24-1班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day3 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((2 * 95px) + 2px);">
+					<h4>安全工程导论(课程号:0205001-课序号:N01)</h4> <ul><li>周次:第6-13周 </li><li>地点:致高楼A512 </li><li>教学班名:安工24-1班 </li> </ul><h4>三维协同设计与BIM技术(课程号:0201180-课序号:N01)</h4> <ul><li>周次:第4-9周 </li><li>地点:科学会堂101 </li><li>教学班名:水工21-[1-4]班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>安全工程导论(课序号:N01)</h4> <ul><li>课程号:0205001</li><li>课程学分:1 </li><li>课程属性:必修 </li><li>上课周次:第6-13周 4[06-07节]</li><li>上课地点:致高楼A512 </li><li>教学班名:安工24-1班 </li> </ul><h4>三维协同设计与BIM技术(课序号:N01)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-9周 4[06-07节]</li><li>上课地点:科学会堂101 </li><li>教学班名:水工21-[1-4]班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day3 xqcolor4" style="height: calc(1 * 95px - 4px);top: calc((3 * 95px) + 2px);">
+					<h4>三维协同设计与BIM技术(课程号:0201180-课序号:N08)</h4> <ul><li>周次:第4-9周 </li><li>地点:致高楼A404 </li><li>教学班名:智水22-1班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>三维协同设计与BIM技术(课序号:N08)</h4> <ul><li>课程号:0201180</li><li>课程学分:1.5 </li><li>课程属性:选修 </li><li>上课周次:第4-9周 4[08-09节]</li><li>上课地点:致高楼A404 </li><li>教学班名:智水22-1班 </li> </ul>
+					</div>
+				</div>
+
+				
+
+				<!--课表显示内容-->
+				<div class="table-class div-context day4 xqcolor0" style="height: calc(1 * 95px - 4px);top: calc((0 * 95px) + 2px);">
+					<h4>智慧水利平台架构与开发(课程号:0204210-课序号:N01)</h4> <ul><li>周次:第2-4,6-15周 </li><li>地点:致高楼A412 </li><li>教学班名:智水22-1班 </li> </ul>
+
+					<!--鼠标悬浮显示内容-->
+					<div class="suspension-table-class" style="display: none">
+						<h4>智慧水利平台架构与开发(课序号:N01)</h4> <ul><li>课程号:0204210</li><li>课程学分:3.5 </li><li>课程属性:必修 </li><li>上课周次:第2-4,6-15周 5[01-02节]</li><li>上课地点:致高楼A412 </li><li>教学班名:智水22-1班 </li> </ul>
+					</div>
+				</div>
+
+				
+			</div>
+			<div class="dialog">
+
+			</div>
+		</div>
+	</div>
+	<div class="xsdPerson-right">
+		<div class="myClass">
+			<div class="card-header">
+				<h2>我的课程</h2>
+				<div class="card-header-right" onclick="Wdkcmore();">
+					<iconpark-icon name="gengduo" icon-id="" size="1em"></iconpark-icon>
+					<span>更多</span>
+				</div>
+			</div>
+			<ul class="myClass-main">
+				
+					<li>
+						<span>三</span>
+						<div>
+							<h4>三维协同设计与BIM技术(0201180)</h4>
+							<p>课堂名称：水工21-[1-4]班</p>
+							<div>
+								<span onclick="kcOper('202420251003645','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>三</span>
+						<div>
+							<h4>三维协同设计与BIM技术(0201180)</h4>
+							<p>课堂名称：水工大禹21班,水工21-[5-7]班</p>
+							<div>
+								<span onclick="kcOper('202420251005065','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>风</span>
+						<div>
+							<h4>风险评估理论与方法(21M020503)</h4>
+							<p>课堂名称：安工24班</p>
+							<div>
+								<span onclick="kcOper('202420251007775','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>智</span>
+						<div>
+							<h4>智慧水利平台架构与开发课程设计(0204226)</h4>
+							<p>课堂名称：智水22-1班</p>
+							<div>
+								<span onclick="kcOper('202420251005436','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>安</span>
+						<div>
+							<h4>安全工程导论(0205001)</h4>
+							<p>课堂名称：安工24-1班</p>
+							<div>
+								<span onclick="kcOper('202420251004564','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>三</span>
+						<div>
+							<h4>三维协同设计与BIM技术(0201180)</h4>
+							<p>课堂名称：智水22-1班</p>
+							<div>
+								<span onclick="kcOper('202420251004997','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+					<li>
+						<span>智</span>
+						<div>
+							<h4>智慧水利平台架构与开发(0204210)</h4>
+							<p>课堂名称：智水22-1班</p>
+							<div>
+								<span onclick="kcOper('202420251004998','1','0')">
+									登分册
+								</span>
+
+								
+									
+								
+							</div>
+						</div>
+					</li>
+				
+			</ul>
+		</div>
+		<div class="message">
+			<!-------   通知信息栏  -------->
+			<iframe id="tongzhiIframe" src="/jsxsd/framework/jsdPerson_tzxx_hehdx.htmlx" style="HEIGHT:100%;width:100%;" scrolling="yes" frameborder="0"></iframe>
+		</div>
+		<div>
+			<!-------   待审核信息栏  -------->
+			<iframe id="daishenIframe" src="/jsxsd/framework/jsdPerson_dshxx_hehdx.htmlx" style="HEIGHT:100%;width:100%;" scrolling="yes" frameborder="0"></iframe>
+		</div>
+	</div>
+</div>
+
+
+<form action="" name="Formfr" id="FormFr">
+	<input type="hidden" name="key" id="key">
+</form>
+<input id="PageContext" type="hidden" value="/jsxsd">
+
+
+<script src="/jsxsd/framework/student/js/hehdx/jquery2.1.4.min.js"></script>
+<script src="/jsxsd/framework/student/js/hehdx/jsdperson.js"></script>
+<script src="/jsxsd/framework/student/js/hehdx/icons.19046.jsxsMain.es5.js"></script>
+<script crossorigin="anonymous" integrity="sha512-RuUMLxuB8daxj+iqjuwA7u2lFFFQNlbnFnerb0FPhfZ761E0Wn6wD4f5vZskYgbxu+wSu36vfFHCUDaKaHHhUQ==" src="/jsxsd/framework/student/js/hehdx/echarts.common.js"></script>
+<script type="text/javascript">
+
+	//我的课程 更多调整到课程信息菜单
+	function Wdkcmore() {
+		var url="/jsxsd/kbxx/jxapcx";
+		window.top.tongzhi(url)
+	}
+
+	//待审核信息中菜单跳转
+	$('.passMsg-main li').on('click',e=>{
+		if($(e.currentTarget).data('src') != null){
+		window.top.tongzhi($(e.currentTarget).data('src'))
+	}
+	});
+
+	//通知信息中菜单跳转
+	$('.message-main li').on('click',e=>{
+		if($(e.currentTarget).data('src') != null){
+		window.top.tongzhi($(e.currentTarget).data('src'))
+	}
+	});
+
+	//线上资料维护
+	function jx0404data(jx0404id){
+		var operUrl = "";
+		var operTitle = " ";
+		operUrl = "/jsxsd/framework/jx0404date_query.htmlx?jx0404id="+jx0404id;
+		openWindow_new(operUrl,$(window).width() - 50,$(window).height() - 80);
+	}
+
+	function dy_jxjlb(jx0404id,jg0101id) {
+		//rqdy_laosha(jx0404id+','+jg0101id,'北京邮电大学_教学记录表','http://192.168.1.77:4000/qzbb/reportJsp/showReport.jsp','alert(\'无对应润乾模板配置\')')
+		var operUrl = "/jsxsd/view/project/hehdx/portal/jsMain_jxjlb.htmlx?jx0404id="+jx0404id;
+		var operTitle = "教学记录表";
+		top.artDialog({
+			id: jx0404id,
+			title: operTitle,
+			fixed: true,
+			url: operUrl,
+			lock: true,
+			width: $(window).width() - 50,
+			height: $(window).height() - 80
+		});
+	}
+
+	function openWindow_new(htmlurl,tmpWidth,tmpHeight,itop,ileft){
+		if(!tmpWidth){
+			tmpWidth = 500;
+		}
+		if(!tmpHeight){
+			tmpHeight = 500;
+		}
+		var top = ((window.screen.availHeight-30-tmpHeight)/2);
+		if(itop!=null && itop!=""){
+			top = itop;
+		}
+		var left = ((window.screen.availWidth-10-tmpWidth)/2);
+		if(ileft!=null && ileft!=""){
+			left = ileft;
+		}
+
+		window.open(htmlurl, "_blank", "toolbar=no,location=no,directories=no,status=no,menubar=no,scrollbars=yes,resizable=no,top="
+				+ top+ ",left=" + left+ ",width="+tmpWidth+"px,height=" + tmpHeight + "px");
+	}
+
+	var vid="";
+	var mb="";
+	var id="";
+	var b=0;
+	function frdy_laosha(ids,key,frurl,func){
+		vid=ids;
+		$("#key").val(key);
+		if(!document.getElementById("frjumpurl")){
+			$('#FormFr').append("<input type='hidden' id='frjumpurl' name='frjumpurl'  value=''  />")
+		}
+		//dwrMonitor.getFrMbxx(key,getDataResult_fr);
+		$.ajax({
+			type: "post",
+			url: $("#PageContext").val()+"/kbxx/getFrmbxx",
+			data: $('#FormFr').serialize(),
+			dataType: "json",
+			success: function(data){
+				//alert(data);
+				if(data.success==false){
+
+				}else{
+					if(data.data==''){
+						setTimeout(func,0);
+					}else{
+						mb=data.data.mb;
+						id=data.data.ywinstanceidname;
+						var url="";
+						if(mb.indexOf(".frm")>=0){
+							url=frurl+"/ReportServer?formlet=/"+mb;
+						}else{
+							url=frurl+"/ReportServer?reportlet=/"+mb;
+						}
+						$("#Form2forFr").remove();
+						$("<form></form>", {
+							target : "_blank",
+							action : url,
+							id : "Form2forFr",
+							name :"Form2forFr",
+							method :"post",
+						}).appendTo($("body"));
+						if(id!=null && id.indexOf(",")>0){
+							var strs= new Array();
+							strs=id.split(",");
+							var idl=vid.split(",");
+							for(var i=0;i<strs.length;i++){
+								$("<input></input>", {
+									name : strs[i],
+									type : "hidden",
+									value:idl[i],
+								}).appendTo($("#Form2forFr"));
+								//url+="&"+strs[i]+"="+idl[i];
+							}
+						}else{
+							$("<input></input>", {
+								name : id,
+								type : "hidden",
+								value:vid,
+							}).appendTo($("#Form2forFr"));
+							//if(id!=null)url+="&"+id+"="+vid;
+						}
+						//url
+						// var str_url=window.btoa(url);
+						//var base = new Base64();
+						//var str_url=base.encode(url);
+						//str_url=window.atob(str_url);
+						$("#frjumpurl").val(url);
+						// alert(url);
+						// alert(Form2forFr.action+"111111");
+						document.getElementById("Form2forFr").submit();
+						//JsOpenWin($("#PageContext").val()+"/fr/fr_index.jsp",1000,700);
+					}
+				}
+			}
+		});
+	}
+
+	function rqdy_laosha(ids,key,rqurl,func){
+		vid=ids;
+		$("#key").val(key);
+		if(!document.getElementById("frjumpurl")){
+			$('#FormFr').append("<input type='hidden' id='frjumpurl' name='frjumpurl'  value=''  />")
+		}
+		//dwrMonitor.getFrMbxx(key,getDataResult_fr);
+		$.ajax({
+			type: "post",
+			url: $("#PageContext").val()+"/kbxx/getFrmbxx",
+			data: $('#FormFr').serialize(),
+			dataType: "json",
+			success: function(data){
+				//alert(data);
+				if(data.success==false){
+
+				}else{
+					if(data.data==''){
+						setTimeout(func,0);
+					}else{
+						mb=data.data.mb;
+						id=data.data.ywinstanceidname;
+						var url="";
+						if(mb.indexOf(".rpx")>=0){
+							url=rqurl+"?rpx=/"+mb;
+						}
+						$("#Form2forFr").remove();
+						$("<form></form>", {
+							target : "_blank",
+							action : url,
+							id : "Form2forFr",
+							name :"Form2forFr",
+							method :"post",
+						}).appendTo($("body"));
+						if(id!=null && id.indexOf(",")>0){
+							var strs= new Array();
+							strs=id.split(",");
+							var idl=vid.split(",");
+							for(var i=0;i<strs.length;i++){
+								$("<input></input>", {
+									name : strs[i],
+									type : "hidden",
+									value:idl[i],
+								}).appendTo($("#Form2forFr"));
+								//url+="&"+strs[i]+"="+idl[i];
+							}
+						}else{
+							$("<input></input>", {
+								name : id,
+								type : "hidden",
+								value:vid,
+							}).appendTo($("#Form2forFr"));
+							//if(id!=null)url+="&"+id+"="+vid;
+						}
+						//url
+						url+="&rpxHome=WEB-INF/reportFiles";
+						//var str_url=window.btoa(url);
+						//var base = new Base64();
+						//var str_url=base.encode(url);
+						//str_url=window.atob(str_url);
+						//alert(str_url);
+						$("#frjumpurl").val(url);
+						document.getElementById("Form2forFr").submit();
+						//JsOpenWin($("#PageContext").val()+"/fr/fr_index.jsp",1000,700);
+					}
+				}
+
+			}
+		});
+	}
+
+	/**
+	 操作类型(czlx)：
+	 1.花名册
+	 2.录入成绩
+	 是否转入成绩录入系统(sfzr) 获取的是cj0703.cj0703id
+	 */
+	function kcOper(jx0404id,czlx,cj0703id){
+		var operUrl = "";
+		var operTitle = " ";
+		if("1" == czlx){
+			operUrl = "/jsxsd/framework/jsMain_hmc.htmlx?jx0404id="+jx0404id;
+			operTitle = "花名册";
+		}else if ("2" == czlx){
+			operUrl =  "/jsxsd/cjlr/comeInCjlr.do?cj0703id="+cj0703id;
+			operTitle = "成绩录入";
+			if("0" == cj0703id){
+				alert("当前不在成绩录入时间范围内或成绩已送审！");
+				return;
+			}
+		}
+		top.artDialog({
+			id: jx0404id,
+			title: operTitle,
+			fixed: true,
+			url: operUrl,
+			lock: true,
+			width: $(window).width() - 50,
+			height: $(window).height() - 80
+		});
+
+	}
+
+	$(function () {
+		var dqzc = '7';
+		if (dqzc != '') {
+			$("#showzc").text("第"+dqzc+"周");
+			$("#xkzc").val(dqzc);
+		}
+		var kbjcmsid = 'DFD745B5C7D94A929D63114EDA1B39C9';
+		if (dqzc != '') {
+			$("#kbjcmsid").val(kbjcmsid);
+			$("#kbjcmsidshow").text($("#kbjcmsid option:selected").text());
+
+		}
+	})
+
+	function refKb(type){
+		var sj = '2024-10-16';
+		var values = "";
+
+		if ("zc" == type) {
+			values = "&xkzc="+$("#xkzc").val();
+		} else {
+			values = "&xzrq="+$("#xzrq").val();
+			if (sj == $("#xzrq").val()) {
+				return ;
+			}
+		}
+
+		var url = "/jsxsd/framework/jsdPerson_hehdx.htmlx?kbjcmsid="+$("#kbjcmsid").val()+values;
+		parent.document.getElementById("mainIframe").src = url
+
+	}
+</script></body></html>

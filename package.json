@@ -4,10 +4,11 @@
   "description": "河海大学课程表",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": ".\\start.bat",
+    "start-direct": "node node_modules/electron/cli.js .",
     "test": "mocha script.test.js",
     "build": "electron-builder --config.win.signAndEditExecutable=false",
-    "dev": "cross-env NODE_ENV=development electron .",
+    "dev": "cross-env NODE_ENV=development node node_modules/electron/cli.js .",
     "make": "electron-forge make"
   },
   "author": "Huijun",
