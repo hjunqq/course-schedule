@@ -1,0 +1,47 @@
+{
+  "cookies": [
+    {
+      "name": "iPlanetDirectoryPro",
+      "value": "bcl6AZBAe7OXMOMxBaNc2c",
+      "domain": ".hhu.edu.cn",
+      "path": "/",
+      "expires": -1,
+      "size": 41,
+      "httpOnly": false,
+      "secure": false,
+      "session": true,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "JSESSIONID",
+      "value": "174FAA32F354DBAC295ADBBC3CC689EF",
+      "domain": "my.hhu.edu.cn",
+      "path": "/portal-web",
+      "expires": -1,
+      "size": 42,
+      "httpOnly": true,
+      "secure": false,
+      "session": true,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    },
+    {
+      "name": "pw_route",
+      "value": "dc82428ff27163f915909991330efa0f",
+      "domain": "my.hhu.edu.cn",
+      "path": "/portal-web",
+      "expires": 1757334718.188343,
+      "size": 40,
+      "httpOnly": false,
+      "secure": false,
+      "session": false,
+      "priority": "Medium",
+      "sameParty": false,
+      "sourceScheme": "Secure"
+    }
+  ],
+  "lastLoginTime": 1757320358106
+}

@@ -1,54 +1,109 @@
 {
   "name": "hhu-course",
-  "version": "0.1.1",
-  "description": "河海大学课程表",
+  "version": "1.0.0",
+  "description": "河海大学课程表 - 自动获取和显示课程表",
   "main": "main.js",
   "scripts": {
-    "start": ".\\start.bat",
-    "start-direct": "node node_modules/electron/cli.js .",
+    "start": "electron .",
+    "dev": "cross-env NODE_ENV=development electron .",
     "test": "mocha script.test.js",
     "build": "electron-builder --config.win.signAndEditExecutable=false",
-    "dev": "cross-env NODE_ENV=development node node_modules/electron/cli.js .",
-    "make": "electron-forge make"
+    "build:win": "electron-builder --win --config.win.signAndEditExecutable=false",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder",
+    "make": "electron-forge make",
+    "postinstall": "electron-builder install-app-deps",
+    "check-env": "node -e \"console.log('Node.js:', process.version); console.log('Platform:', process.platform);\"",
+    "clean": "rimraf dist node_modules/.cache"
   },
-  "author": "Huijun",
+  "author": {
+    "name": "Huijun",
+    "email": ""
+  },
   "build": {
-    "appId": "com.hhu.course",
+    "appId": "com.hhu.course-schedule",
+    "productName": "河海大学课程表",
     "icon": "icons/tray-icon-big.png",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build-resources"
+    },
+    "files": [
+      "**/*",
+      "!test/**/*",
+      "!*.md", 
+      "!build/**/*",
+      "!dist/**/*",
+      "!.vscode/**/*",
+      "!node_modules/**/*",
+      "node_modules/puppeteer/**/*",
+      "node_modules/puppeteer-core/**/*",
+      "node_modules/cheerio/**/*",
+      "node_modules/iconv-lite/**/*",
+      "node_modules/jschardet/**/*",
+      "node_modules/semver/**/*",
+      "!node_modules/puppeteer/.local-chromium/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "icons/",
+        "to": "icons"
+      },
+      {
+        "from": "*.html",
+        "to": "."
+      },
+      {
+        "from": "*.js",
+        "to": ".",
+        "filter": ["preload.js", "renderer.js"]
+      }
+    ],
     "win": {
-      "target": "portable",
-      "icon": "icons/tray-icon-big.png"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "portable",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icons/tray-icon-big.png",
+      "artifactName": "${productName}-${version}-${arch}.${ext}"
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "河海大学课程表"
     },
-    "directories": {
-      "output": "dist"
-    },
-    "extraResources": [
-      {
-        "from": "./resources/",
-        "to": "resources",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
-    "extraFiles": [
-      {
-        "from": "node_modules/puppeteer/.local-chromium",
-        "to": "chromium",
-        "filter": [
-          "**/*"
-        ]
-      }
-    ],
     "mac": {
-      "target": "dmg"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "icon": "icons/icon.icns"
     },
     "linux": {
-      "target": "AppImage"
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "icons/icon.png",
+      "category": "Education"
     }
   },
   "license": "MIT",
@@ -57,9 +112,15 @@
     "iconv-lite": "^0.6.3",
     "jschardet": "^3.0.0",
     "puppeteer": "^23.4.0",
+    "puppeteer-core": "^23.4.0",
     "semver": "^7.5.4"
   },
-  "keywords": [],
+  "keywords": [
+    "河海大学",
+    "课程表",
+    "教务系统",
+    "electron"
+  ],
   "devDependencies": {
     "cross-env": "^7.0.3",
     "electron": "^25.9.8",

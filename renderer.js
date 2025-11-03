@@ -3,59 +3,342 @@ const { ipcRenderer } = require('electron');
 // 在文件顶部添加一个全局变量来存储当前显示的课程信息
 let currentDisplayedCourseInfo = null;
 
-document.getElementById('loginButton').addEventListener('click', () => {
-    showLoading();
-    ipcRenderer.send('update-course-info'); // 不传入周次,默认加载当前周
-});
-
-document.getElementById('loadButton').addEventListener('click', () => {
-    console.log('加载本地课表按钮被点击');
-    ipcRenderer.send('load-course-info');
-});
-
-document.getElementById('configButton').addEventListener('click', () => {
-    ipcRenderer.send('open-config');
-});
-
 // 事件监听器初始化标志
 let eventListenersInitialized = false;
+let lastActivityTime = Date.now();
+
+// 活动检测 - 用于检测界面是否失去响应
+function updateActivity() {
+    lastActivityTime = Date.now();
+}
+
+// 检查界面响应性
+function checkResponsiveness() {
+    const now = Date.now();
+    if (now - lastActivityTime > 30000) { // 30秒无活动
+        console.log('界面可能失去响应，尝试重新初始化事件');
+        reinitializeEvents();
+    }
+}
+
+// 重新初始化所有事件监听器
+function reinitializeEvents() {
+    console.log('重新初始化事件监听器');
+    eventListenersInitialized = false;
+    initializeEventListeners();
+    updateActivity();
+}
+
+// 在页面上添加全局点击监听器来检测活动
+document.addEventListener('click', updateActivity);
+document.addEventListener('keydown', updateActivity);
+document.addEventListener('mousemove', updateActivity);
+
+// 每10秒检查一次响应性
+setInterval(checkResponsiveness, 10000);
+
+// 页面可见性变化监听器
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+        console.log('页面变为可见，重新初始化事件');
+        updateActivity();
+        // 页面变为可见时重新初始化事件
+        setTimeout(() => {
+            reinitializeEvents();
+        }, 100);
+    }
+});
+
+// 窗口焦点事件监听器
+window.addEventListener('focus', () => {
+    console.log('窗口获得焦点');
+    updateActivity();
+    setTimeout(() => {
+        reinitializeEvents();
+    }, 100);
+});
+
+// 全局错误处理
+window.addEventListener('error', (event) => {
+    console.error('全局错误:', event.error);
+    updateActivity();
+});
+
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('未处理的Promise拒绝:', event.reason);
+    updateActivity();
+});
+
+// 添加键盘快捷键支持
+document.addEventListener('keydown', (event) => {
+    updateActivity();
+    
+    // F5 或 Ctrl+R 刷新页面
+    if (event.key === 'F5' || (event.ctrlKey && event.key === 'r')) {
+        event.preventDefault();
+        console.log('用户手动刷新页面');
+        location.reload();
+    }
+    
+    // Ctrl+Shift+I 打开开发者工具
+    if (event.ctrlKey && event.shiftKey && event.key === 'I') {
+        event.preventDefault();
+        ipcRenderer.send('toggle-dev-tools');
+    }
+    
+    // F1 显示帮助信息
+    if (event.key === 'F1') {
+        event.preventDefault();
+        showHelpDialog();
+    }
+    
+    // Escape 重新初始化事件
+    if (event.key === 'Escape') {
+        console.log('用户按下Escape，重新初始化事件');
+        reinitializeEvents();
+    }
+});
+
+// 显示帮助对话框
+function showHelpDialog() {
+    updateStatusInfo('快捷键: F5刷新 | Escape重置界面 | F1帮助 | Ctrl+Shift+I开发工具', 'info');
+    setTimeout(() => {
+        updateStatusInfo('应用已准备就绪', 'success');
+    }, 5000);
+}
 
 // 初始化事件监听器
 function initializeEventListeners() {
     if (eventListenersInitialized) return;
     
+    console.log('正在初始化事件监听器...');
+    
+    // 确保元素存在后再添加事件监听器
+    const elements = {
+        loginButton: document.getElementById('loginButton'),
+        loadButton: document.getElementById('loadButton'),
+        configButton: document.getElementById('configButton'),
+        currentWeekBtn: document.getElementById('currentWeekBtn'),
+        prevWeekBtn: document.getElementById('prevWeekBtn'),
+        nextWeekBtn: document.getElementById('nextWeekBtn'),
+        weekSelector: document.getElementById('weekSelector')
+    };
+    
+    // 检查所有必需的元素是否存在
+    for (const [name, element] of Object.entries(elements)) {
+        if (!element) {
+            console.error(`元素 ${name} 不存在，延迟初始化`);
+            setTimeout(() => initializeEventListeners(), 1000);
+            return;
+        }
+    }
+    
+    // 移除可能存在的旧事件监听器
+    const newLoginButton = elements.loginButton.cloneNode(true);
+    elements.loginButton.parentNode.replaceChild(newLoginButton, elements.loginButton);
+    
+    const newLoadButton = elements.loadButton.cloneNode(true);
+    elements.loadButton.parentNode.replaceChild(newLoadButton, elements.loadButton);
+    
+    const newConfigButton = elements.configButton.cloneNode(true);
+    elements.configButton.parentNode.replaceChild(newConfigButton, elements.configButton);
+    
+    const newCurrentWeekBtn = elements.currentWeekBtn.cloneNode(true);
+    elements.currentWeekBtn.parentNode.replaceChild(newCurrentWeekBtn, elements.currentWeekBtn);
+    
+    const newPrevWeekBtn = elements.prevWeekBtn.cloneNode(true);
+    elements.prevWeekBtn.parentNode.replaceChild(newPrevWeekBtn, elements.prevWeekBtn);
+    
+    const newNextWeekBtn = elements.nextWeekBtn.cloneNode(true);
+    elements.nextWeekBtn.parentNode.replaceChild(newNextWeekBtn, elements.nextWeekBtn);
+    
+    const newWeekSelector = elements.weekSelector.cloneNode(true);
+    elements.weekSelector.parentNode.replaceChild(newWeekSelector, elements.weekSelector);
+    
+    // 重新初始化周次选择器的选项
+    const weekSelectorElement = document.getElementById('weekSelector');
+    weekSelectorElement.innerHTML = '<option value="">选择周次</option>';
+    for (let i = 1; i <= 25; i++) {
+        const option = document.createElement('option');
+        option.value = i;
+        option.textContent = `第${i}周`;
+        weekSelectorElement.appendChild(option);
+    }
+    
+    // 重新获取元素引用
+    const loginButton = document.getElementById('loginButton');
+    const loadButton = document.getElementById('loadButton');
+    const configButton = document.getElementById('configButton');
+    const currentWeekBtn = document.getElementById('currentWeekBtn');
+    const prevWeekBtn = document.getElementById('prevWeekBtn');
+    const nextWeekBtn = document.getElementById('nextWeekBtn');
+    const weekSelector = document.getElementById('weekSelector');
+    
+    // 添加事件监听器
+    // 添加事件监听器
+    loginButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('登录按钮被点击');
+        updateActivity();
+        showLoading();
+        
+        // 获取当前周次并加载
+        const currentWeek = getCurrentWeek();
+        console.log(`获取最新课表，当前周次: 第${currentWeek}周`);
+        
+        // 设置周次选择器的值
+        const weekSelector = document.getElementById('weekSelector');
+        weekSelector.value = currentWeek;
+        
+        updateStatusInfo(`正在获取第${currentWeek}周最新课表...`, 'warning');
+        ipcRenderer.send('update-course-info', currentWeek.toString());
+    });
+    
+    loadButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('加载本地课表按钮被点击');
+        updateActivity();
+        ipcRenderer.send('load-course-info');
+    });
+    
+    configButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('配置按钮被点击');
+        updateActivity();
+        ipcRenderer.send('open-config');
+    });
+    
     // 添加新的事件监听器
-    document.getElementById('currentWeekBtn').addEventListener('click', () => {
+    currentWeekBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('当前周按钮被点击');
+        updateActivity();
         showLoading();
         updateStatusInfo('正在获取当前周课表...', 'warning');
-        ipcRenderer.send('update-course-info'); // 获取当前周
+        
+        // 获取当前周次
+        const currentWeek = getCurrentWeek();
+        console.log(`跳转到当前周: 第${currentWeek}周`);
+        
+        // 设置周次选择器的值
+        const weekSelector = document.getElementById('weekSelector');
+        weekSelector.value = currentWeek;
+        
+        // 发送获取当前周课表的请求
+        ipcRenderer.send('update-course-info', currentWeek.toString());
     });
 
-    document.getElementById('prevWeekBtn').addEventListener('click', () => {
+    prevWeekBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('上一周按钮被点击');
+        updateActivity();
+        
         const weekSelector = document.getElementById('weekSelector');
-        const currentWeek = parseInt(weekSelector.value);
-        if (currentWeek && currentWeek > 1) {
+        let currentWeek = parseInt(weekSelector.value);
+        
+        // 如果weekSelector没有值或值无效，尝试获取当前实际周次
+        if (!currentWeek || isNaN(currentWeek)) {
+            currentWeek = getCurrentWeek() || 1;
+            weekSelector.value = currentWeek;
+        }
+        
+        console.log(`当前周次: ${currentWeek}`);
+        
+        if (currentWeek > 1) {
             const newWeek = currentWeek - 1;
+            console.log(`切换到第${newWeek}周`);
+            
+            // 先设置选择器的值
             weekSelector.value = newWeek;
-            // 直接调用加载函数，避免重复触发
+            
+            // 然后加载该周的课程
             loadSpecificWeek(newWeek);
+        } else {
+            console.log('已经是第一周');
+            updateStatusInfo('已经是第一周了', 'warning');
         }
     });
 
-    document.getElementById('nextWeekBtn').addEventListener('click', () => {
+    nextWeekBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('下一周按钮被点击');
+        updateActivity();
+        
         const weekSelector = document.getElementById('weekSelector');
-        const currentWeek = parseInt(weekSelector.value);
-        if (currentWeek && currentWeek < 25) { // 限制最大周数
+        let currentWeek = parseInt(weekSelector.value);
+        
+        console.log(`weekSelector.value: "${weekSelector.value}"`);
+        console.log(`parseInt后的currentWeek: ${currentWeek}`);
+        console.log(`isNaN(currentWeek): ${isNaN(currentWeek)}`);
+        
+        // 如果weekSelector没有值或值无效，尝试获取当前实际周次
+        if (!currentWeek || isNaN(currentWeek)) {
+            currentWeek = getCurrentWeek() || 1;
+            console.log(`使用getCurrentWeek()获得的周次: ${currentWeek}`);
+            weekSelector.value = currentWeek;
+        }
+        
+        console.log(`最终使用的当前周次: ${currentWeek}`);
+        
+        if (currentWeek < 25) { // 限制最大周数
             const newWeek = currentWeek + 1;
+            console.log(`计算的新周次: ${newWeek}`);
+            
+            // 先设置选择器的值
             weekSelector.value = newWeek;
-            // 直接调用加载函数，避免重复触发
+            console.log(`设置weekSelector.value为: ${newWeek}`);
+            
+            // 然后加载该周的课程
             loadSpecificWeek(newWeek);
+        } else {
+            console.log('已经是最后一周');
+            updateStatusInfo('已经是最后一周了', 'warning');
         }
     });
 
-    document.getElementById('weekSelector').addEventListener('change', () => {
-        loadSelectedWeek();
+    document.getElementById('weekSelector').addEventListener('change', (e) => {
+        e.preventDefault();
+        console.log('周选择器变化');
+        updateActivity();
+        const selectedWeek = parseInt(e.target.value);
+        if (selectedWeek) {
+            loadSpecificWeek(selectedWeek);
+        }
     });
+    
+    // 添加窗口控制按钮事件
+    const minimizeBtn = document.getElementById('minimize-btn');
+    const maximizeBtn = document.getElementById('maximize-btn');
+    const closeBtn = document.getElementById('close-btn');
+    
+    if (minimizeBtn) {
+        minimizeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateActivity();
+            require('electron').remote.getCurrentWindow().minimize();
+        });
+    }
+    
+    if (maximizeBtn) {
+        maximizeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateActivity();
+            const win = require('electron').remote.getCurrentWindow();
+            if (win.isMaximized()) {
+                win.unmaximize();
+            } else {
+                win.maximize();
+            }
+        });
+    }
+    
+    if (closeBtn) {
+        closeBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            updateActivity();
+            require('electron').remote.getCurrentWindow().close();
+        });
+    }
     
     eventListenersInitialized = true;
     console.log('事件监听器初始化完成');
@@ -84,10 +367,16 @@ function loadSelectedWeek() {
 
 // 加载指定周次的课表
 function loadSpecificWeek(week) {
-    if (week) {
+    if (week && week > 0 && week <= 25) {
+        console.log(`正在加载第${week}周的课程信息`);
         showLoading();
         updateStatusInfo(`正在获取第${week}周课表...`, 'warning');
+        
+        // 确保传递的是字符串格式的周次
         ipcRenderer.send('update-course-info', week.toString());
+    } else {
+        console.error(`无效的周次: ${week}`);
+        updateStatusInfo('无效的周次，请选择1-25之间的周次', 'error');
     }
 }
 
@@ -132,25 +421,40 @@ function hideLoading() {
 // 修改 handleCourseInfo 函数
 async function handleCourseInfo(allCourseInfo) {
     console.log('收到课程信息:', allCourseInfo);
-    const currentWeek = allCourseInfo.currentWeek;
-    const courseInfo = allCourseInfo[currentWeek];
+    
+    // 优先使用请求的周次，而不是allCourseInfo.currentWeek
+    const weekSelector = document.getElementById('weekSelector');
+    let targetWeek;
+    
+    // 如果周选择器有值，使用该值；否则使用allCourseInfo.currentWeek或计算当前周
+    if (weekSelector.value && parseInt(weekSelector.value) > 0) {
+        targetWeek = parseInt(weekSelector.value);
+        console.log(`使用周选择器的值: 第${targetWeek}周`);
+    } else {
+        // 优先使用 allCourseInfo.currentWeek，如果没有则计算当前周
+        targetWeek = allCourseInfo.currentWeek || getCurrentWeek() || 1;
+        console.log(`使用默认当前周: 第${targetWeek}周`);
+        weekSelector.value = targetWeek; // 设置选择器的值
+    }
+    
+    const courseInfo = allCourseInfo[targetWeek];
     if (courseInfo) {
         currentDisplayedCourseInfo = courseInfo; // 存储当前显示的课程信息
         
         if (courseInfo.courses && courseInfo.courses.length > 0) {
-            await displayCourseTable(courseInfo, currentWeek);
-            updateStatusInfo(`第${currentWeek}周课程表加载成功，共${courseInfo.courses.length}门课程`, 'success');
-            showStatus(`第${currentWeek}周课程表加载成功，共${courseInfo.courses.length}门课程`);
+            await displayCourseTable(courseInfo, targetWeek);
+            updateStatusInfo(`第${targetWeek}周课程表加载成功，共${courseInfo.courses.length}门课程`, 'success');
+            showStatus(`第${targetWeek}周课程表加载成功，共${courseInfo.courses.length}门课程`);
         } else {
-            displayEmptyCourseTable(currentWeek);
-            updateStatusInfo(`第${currentWeek}周没有课程安排`, 'warning');
-            showStatus(`第${currentWeek}周没有课程安排`);
+            displayEmptyCourseTable(targetWeek);
+            updateStatusInfo(`第${targetWeek}周没有课程安排`, 'warning');
+            showStatus(`第${targetWeek}周没有课程安排`);
         }
         
         hideLoading();
         
-        // 更新周次选择器的值
-        document.getElementById('weekSelector').value = currentWeek;
+        // 确保周次选择器显示正确的值
+        weekSelector.value = targetWeek;
 
         // 启动自动更新
         startAutoUpdate();
@@ -298,6 +602,19 @@ function updateCourseStatus() {
 // 单独的下一节课提醒更新函数
 function updateNextCourseReminder(currentDay, currentTime, currentWeek) {
     try {
+        // 只有在当前显示周次等于实际当前周时才更新下一节课提醒
+        const weekSelector = document.getElementById('weekSelector');
+        const displayedWeek = parseInt(weekSelector.value);
+        
+        if (displayedWeek !== currentWeek) {
+            // 如果显示的不是当前周，移除下一节课提醒
+            const reminderElement = document.querySelector('.next-course-reminder');
+            if (reminderElement) {
+                reminderElement.remove();
+            }
+            return;
+        }
+        
         const sortedCourses = currentDisplayedCourseInfo.courses.sort((a, b) => {
             if (a.dayIndex !== b.dayIndex) {
                 return a.dayIndex - b.dayIndex;
@@ -305,7 +622,7 @@ function updateNextCourseReminder(currentDay, currentTime, currentWeek) {
             return a.timeSlotIndex - b.timeSlotIndex;
         });
         
-        const nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, currentWeek);
+        const nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, currentWeek, displayedWeek);
         const reminderElement = document.querySelector('.next-course-reminder');
         
         if (reminderElement) {
@@ -359,10 +676,11 @@ async function displayCourseTable(courseInfo, currentWeek) {
         headerRow.appendChild(th);
     });
 
-    // 获取当前时间
+    // 获取当前时间和当前周次
     const now = new Date();
     const currentDay = now.getDay();
     const currentTime = now.getHours() * 60 + now.getMinutes();
+    const actualCurrentWeek = getCurrentWeek();
 
     // 对课程进行排序
     const sortedCourses = courseInfo.courses.sort((a, b) => {
@@ -372,8 +690,8 @@ async function displayCourseTable(courseInfo, currentWeek) {
         return a.timeSlotIndex - b.timeSlotIndex;
     });
 
-    // 找到下一节课
-    let nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, currentWeek);
+    // 找到下一节课（只有在查看当前周时才有下一节课）
+    let nextCourse = findNextCourse(sortedCourses, currentDay, currentTime, actualCurrentWeek, parseInt(currentWeek));
 
     // 填充课程信息
     courseInfo.timeSlots.forEach((timeSlot, i) => {
@@ -388,7 +706,7 @@ async function displayCourseTable(courseInfo, currentWeek) {
                 
                 if (coursesForThisSlot.length > 0) {
                     cell.innerHTML = coursesForThisSlot.map(course => {
-                        const isPast = isCoursePast(course, now, currentWeek);
+                        const isPast = isCoursePast(course, now, parseInt(currentWeek));
                         const courseStatus = isPast ? 'past-course' : 'future-course';
                         const statusText = isPast ? '<span class="course-status past"><i class="fas fa-check-circle"></i> 已上课</span>' : '<span class="course-status future"><i class="fas fa-clock"></i> 未上课</span>';
 
@@ -426,8 +744,8 @@ async function displayCourseTable(courseInfo, currentWeek) {
     tableDiv.appendChild(table);
     console.log('课程表显示完成');
 
-    // 显示下一节课提醒
-    if (nextCourse) {
+    // 只有在查看当前周时才显示下一节课提醒
+    if (nextCourse && parseInt(currentWeek) === actualCurrentWeek) {
         displayNextCourseReminder(nextCourse, courseInfo, tableDiv);
     }
 
@@ -530,10 +848,10 @@ ipcRenderer.on('semester-start', (event, date) => {
             // 显示提示信息
             showStatus(`当前为第${currentWeek}周，超出正常学期范围(1-21周)，请重新设置学期开始日期`, 8000);
         } else {
-            // 自动跳转到当前周
-            console.log(`自动跳转到第${currentWeek}周`);
+            // 默认加载当前周
+            console.log(`学期当前为第${currentWeek}周，默认加载当前周`);
             const weekSelector = document.getElementById('weekSelector');
-            weekSelector.value = currentWeek;
+            weekSelector.value = currentWeek; // 默认显示当前周
             
             // 自动加载当前周的课表
             updateStatusInfo(`正在加载第${currentWeek}周课表...`, 'warning');
@@ -612,12 +930,21 @@ function getDayOfWeek(dateString) {
     return days[date.getDay()];
 }
 
-// 修改 findNextCourse 函数
-function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek) {
+// 修改 findNextCourse 函数，增加viewingWeek参数来区分查看的周次
+function findNextCourse(sortedCourses, currentDay, currentTime, currentWeek, viewingWeek = null) {
+    const targetWeek = viewingWeek || currentWeek;
+    
     console.log('当前星期:', currentDay);
     console.log('当前时间(分钟):', currentTime);
     console.log('当前周次:', currentWeek);
+    console.log('查看周次:', targetWeek);
     console.log('课程列表:', sortedCourses);
+
+    // 如果查看的不是当前周，不显示下一节课高亮
+    if (targetWeek !== currentWeek) {
+        console.log('查看的不是当前周，不显示下一节课提醒');
+        return null;
+    }
 
     const adjustedCurrentDay = currentDay === 0 ? 6 : currentDay - 1; // 调整为0-6表示周一到周日
 
@@ -714,14 +1041,23 @@ document.getElementById('close-btn').addEventListener('click', () => {
 });
 
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM内容加载完成，开始初始化');
+    
     // 初始化周次选择器（增加到25周）
     initializeWeekSelector();
     
-    // 初始化事件监听器
-    initializeEventListeners();
+    // 延迟初始化事件监听器，确保DOM完全准备好
+    setTimeout(() => {
+        initializeEventListeners();
+    }, 100);
     
     // 初始化状态信息
-    updateStatusInfo('正在初始化，请稍候...', 'warning');
+    updateStatusInfo('应用已准备就绪，请选择操作', 'success');
+    
+    // 启动活动检测
+    updateActivity();
+    
+    console.log('初始化完成');
     
     // 请求学期开始日期，后续逻辑在 semester-start 事件中处理
     requestSemesterStart();
@@ -731,11 +1067,6 @@ document.addEventListener('DOMContentLoaded', () => {
 window.addEventListener('beforeunload', () => {
     stopAutoUpdate();
     console.log('页面卸载，已清理定时器');
-});
-
-ipcRenderer.on('course-info-updated', (event, allCourseInfo) => {
-    hideLoading();
-    handleCourseInfo(allCourseInfo);
 });
 
 function getWeekDates(weekNumber) {
