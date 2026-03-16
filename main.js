@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, shell } = require('electron');
 const https = require('https');
 const semver = require('semver');
 const path = require('path');
 const fs = require('fs').promises;
+const { syncCoursesToMicrosoftCalendar } = require('./microsoft-calendar');
 
 // Puppeteer 路径处理
 let puppeteer;
@@ -48,6 +49,14 @@ function getCourseDataPath() {
 // 获取登录状态文件路径
 function getLoginStatePath() {
     return path.join(getAppDataPath(), 'login_state.json');
+}
+
+function getMicrosoftTokenCachePath() {
+    return path.join(getAppDataPath(), 'microsoft_token_cache.json');
+}
+
+function getMicrosoftSyncStatePath() {
+    return path.join(getAppDataPath(), 'microsoft_sync_state.json');
 }
 
 // 获取 Chromium 可执行文件路径
@@ -109,17 +118,13 @@ async function initializeAppData() {
             await fs.access(configPath);
         } catch (error) {
             console.log('配置文件不存在，创建默认配置...');
-            const defaultConfig = {
-                username: '',
-                password: '',
-                semesterStart: '2024-09-02', // 默认学期开始时间，用户需要修改
-                autoLogin: false,
-                windowBehavior: 'minimize'
-            };
-            await fs.writeFile(configPath, JSON.stringify(defaultConfig, null, 2), 'utf8');
+            await fs.writeFile(configPath, JSON.stringify(DEFAULT_CONFIG, null, 2), 'utf8');
             console.log('默认配置文件已创建:', configPath);
         }
-        
+
+        const currentConfig = await readConfig();
+        await writeConfig(currentConfig);
+
         console.log('应用数据目录初始化完成:', appDataDir);
     } catch (error) {
         console.error('初始化应用数据目录失败:', error);
@@ -153,6 +158,63 @@ function log(key, ...args) {
     const message = messages[key] || key;
     const formattedMessage = message.replace(/\{(\d+)\}/g, (match, index) => args[index] || match);
     console.log(`[${new Date().toLocaleTimeString()}] ${formattedMessage}`);
+}
+
+const HHU_AUTH_ORIGIN = 'https://authserver.hhu.edu.cn';
+const HHU_JWXT_ORIGIN = 'https://jwxt.hhu.edu.cn';
+const HHU_JWXT_SSO_URL = `${HHU_JWXT_ORIGIN}/jsxsd/sso.jsp`;
+// 新门户改版后，直接对教务 SSO 发起 CAS 登录更稳定，避免依赖门户首页跳转。
+const HHU_AUTH_LOGIN_URL = `${HHU_AUTH_ORIGIN}/authserver/login?service=${encodeURIComponent(HHU_JWXT_SSO_URL)}`;
+const MICROSOFT_SYNC_WEEKS = 25;
+const DEFAULT_CONFIG = {
+    username: '',
+    password: '',
+    semesterStart: '2024-09-02',
+    microsoftClientId: '',
+    microsoftTenantId: 'common',
+    microsoftCalendarName: 'HHU 课程表',
+    microsoftAutoSyncEnabled: false,
+    microsoftAutoSyncIntervalMinutes: 360,
+    autoLogin: false,
+    windowBehavior: 'minimize'
+};
+
+function normalizeConfig(config) {
+    const merged = {
+        ...DEFAULT_CONFIG,
+        ...(config || {})
+    };
+
+    merged.username = String(merged.username || '');
+    merged.password = String(merged.password || '');
+    merged.semesterStart = String(merged.semesterStart || DEFAULT_CONFIG.semesterStart);
+    merged.microsoftClientId = String(merged.microsoftClientId || '').trim();
+    merged.microsoftTenantId = String(merged.microsoftTenantId || '').trim() || DEFAULT_CONFIG.microsoftTenantId;
+    merged.microsoftCalendarName = String(merged.microsoftCalendarName || '').trim() || DEFAULT_CONFIG.microsoftCalendarName;
+    merged.microsoftAutoSyncEnabled = Boolean(merged.microsoftAutoSyncEnabled);
+
+    const intervalMinutes = Number.parseInt(merged.microsoftAutoSyncIntervalMinutes, 10);
+    merged.microsoftAutoSyncIntervalMinutes = Number.isFinite(intervalMinutes)
+        ? Math.min(1440, Math.max(15, intervalMinutes))
+        : DEFAULT_CONFIG.microsoftAutoSyncIntervalMinutes;
+
+    return merged;
+}
+
+async function readConfig() {
+    const configPath = getConfigPath();
+    const data = await fs.readFile(configPath, 'utf8');
+    return normalizeConfig(JSON.parse(data));
+}
+
+async function writeConfig(config) {
+    const normalizedConfig = normalizeConfig(config);
+    await fs.writeFile(getConfigPath(), JSON.stringify(normalizedConfig, null, 2), 'utf8');
+    return normalizedConfig;
+}
+
+function getJwxtCourseUrl(targetWeek) {
+    return `${HHU_JWXT_ORIGIN}/jsxsd/framework/jsdPerson_hehdx.htmlx?xkzc=${targetWeek}`;
 }
 
 // 添加登录状态管理
@@ -195,9 +257,548 @@ async function saveLoginState() {
         console.error('保存登录状态失败:', error);
     }
 }
+async function resetLoginState() {
+    loginCookies = null;
+    lastLoginTime = null;
+    await saveLoginState();
+}
+
+async function collectLoginStateCookies(page) {
+    return page.cookies(
+        HHU_AUTH_ORIGIN,
+        `${HHU_AUTH_ORIGIN}/authserver/login`,
+        HHU_JWXT_ORIGIN,
+        HHU_JWXT_SSO_URL,
+        `${HHU_JWXT_ORIGIN}/jsxsd/`
+    );
+}
+
+async function persistLoginStateFromPage(page) {
+    loginCookies = await collectLoginStateCookies(page);
+    lastLoginTime = Date.now();
+    await saveLoginState();
+}
+
+async function isOnAuthLoginPage(page) {
+    if (page.url().includes('/authserver/login')) {
+        return true;
+    }
+
+    const usernameInput = await page.$('#username');
+    const loginButton = await page.$('#login_submit');
+    return Boolean(usernameInput && loginButton);
+}
+
+async function getAuthLoginError(page) {
+    return page.evaluate(() => {
+        const selectors = [
+            '#showErrorTip',
+            '#showWarnTip',
+            '#formErrorTip',
+            '#pwdErrorTip',
+            '#nameErrorTip',
+            '#captchaErrorTip'
+        ];
+
+        for (const selector of selectors) {
+            const element = document.querySelector(selector);
+            const text = element && element.textContent ? element.textContent.trim() : '';
+            if (text) {
+                return text;
+            }
+        }
+
+        const captchaDiv = document.querySelector('#captchaDiv');
+        if (captchaDiv) {
+            const style = window.getComputedStyle(captchaDiv);
+            const isVisible = !captchaDiv.classList.contains('hide') &&
+                style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                captchaDiv.offsetParent !== null;
+            if (isVisible) {
+                return '统一身份认证当前要求验证码，应用暂不支持自动处理';
+            }
+        }
+
+        return '';
+    });
+}
+
+async function ensureJwxtLogin(page, config) {
+    if (!config.username || !config.password) {
+        throw new Error('未配置学号/工号或密码，请先在设置中保存账号信息');
+    }
+
+    await page.goto(HHU_AUTH_LOGIN_URL, {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+    });
+
+    if (!(await isOnAuthLoginPage(page))) {
+        await persistLoginStateFromPage(page);
+        return;
+    }
+
+    await page.waitForFunction(() => {
+        const usernameInput = document.querySelector('#username');
+        const passwordInput = document.querySelector('#password');
+        const loginButton = document.querySelector('#login_submit');
+        const isVisible = (element) => {
+            if (!element) {
+                return false;
+            }
+            const style = window.getComputedStyle(element);
+            return style.display !== 'none' &&
+                style.visibility !== 'hidden' &&
+                element.offsetParent !== null;
+        };
+
+        return isVisible(usernameInput) && isVisible(passwordInput) && isVisible(loginButton);
+    }, { timeout: 10000 });
+
+    await page.evaluate(() => {
+        const usernameInput = document.querySelector('#username');
+        if (usernameInput) {
+            usernameInput.value = '';
+        }
+
+        const passwordInput = document.querySelector('#password');
+        if (passwordInput) {
+            passwordInput.removeAttribute('readonly');
+            passwordInput.value = '';
+        }
+
+        const saltPasswordInput = document.querySelector('#saltPassword');
+        if (saltPasswordInput) {
+            saltPasswordInput.value = '';
+        }
+    });
+
+    await page.type('#username', config.username, { delay: 80 });
+    await page.type('#password', config.password, { delay: 80 });
+    await page.click('#login_submit');
+
+    await Promise.race([
+        page.waitForNavigation({
+            waitUntil: 'networkidle2',
+            timeout: 30000
+        }),
+        page.waitForFunction(() => !window.location.href.includes('/authserver/login'), {
+            timeout: 30000
+        }),
+        page.waitForFunction(() => {
+            const selectors = [
+                '#showErrorTip',
+                '#showWarnTip',
+                '#formErrorTip',
+                '#pwdErrorTip',
+                '#nameErrorTip',
+                '#captchaErrorTip'
+            ];
+
+            return selectors.some((selector) => {
+                const element = document.querySelector(selector);
+                return Boolean(element && element.textContent && element.textContent.trim());
+            });
+        }, {
+            timeout: 30000
+        })
+    ]).catch(() => null);
+
+    if (await isOnAuthLoginPage(page)) {
+        const loginError = await getAuthLoginError(page);
+        throw new Error(loginError || '登录后仍停留在统一身份认证页面，请检查账号密码或学校登录策略是否变化');
+    }
+
+    await persistLoginStateFromPage(page);
+}
+
+function createEmptyCourseInfo(targetWeek) {
+    return {
+        courses: [],
+        note: '',
+        dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+        timeSlots: [],
+        currentWeek: parseInt(targetWeek, 10)
+    };
+}
+
+async function fetchCourseInfoForWeek(page, targetWeek) {
+    await page.goto(getJwxtCourseUrl(targetWeek), {
+        waitUntil: 'networkidle2',
+        timeout: 30000
+    });
+
+    const currentPageContent = await page.content();
+    const currentPageTitle = await page.title();
+    const currentPageUrl = page.url();
+
+    console.log('页面标题:', currentPageTitle);
+    console.log('当前URL:', currentPageUrl);
+
+    if (currentPageTitle.includes('登录') || currentPageUrl.includes('authserver') || currentPageUrl.includes('login')) {
+        await resetLoginState();
+        throw new Error('登录状态失效，需要重新登录');
+    }
+
+    await persistLoginStateFromPage(page);
+
+    const possibleSelectors = ['.xsdPerson', '#xsdPerson', '.table-class', '.course-table', '.kbcontent'];
+    let targetSelector = null;
+
+    for (const selector of possibleSelectors) {
+        const element = await page.$(selector);
+        if (element) {
+            targetSelector = selector;
+            console.log(`找到目标元素: ${selector}`);
+            break;
+        }
+    }
+
+    if (!targetSelector) {
+        console.log('未找到已知的页面元素，尝试查找表格元素...');
+        const tables = await page.$$('table');
+        console.log(`页面中共有 ${tables.length} 个表格元素`);
+
+        const debugPath = getResourcePath('debug_page.html');
+        await fs.writeFile(debugPath, currentPageContent, 'utf8');
+        console.log(`页面内容已保存到: ${debugPath}`);
+
+        throw new Error(`页面结构可能已变更，未找到课程表元素。页面内容已保存到 ${debugPath} 用于调试`);
+    }
+
+    await page.waitForSelector(targetSelector, { timeout: 30000 });
+    console.log('课程表页面加载完成');
+
+    const hasCourseData = await page.$(`${targetSelector} .table-class`) || await page.$('table.table-class') || await page.$('.table-class');
+    if (!hasCourseData) {
+        console.log(`第${targetWeek}周没有课程数据或页面结构已变更`);
+        return createEmptyCourseInfo(targetWeek);
+    }
+
+    const pageContent = await page.content();
+    return parseCourseInfo(pageContent, targetWeek);
+}
+
+async function readAllCourseInfo() {
+    try {
+        const data = await fs.readFile(getCourseDataPath(), 'utf8');
+        return JSON.parse(data);
+    } catch (error) {
+        return {};
+    }
+}
+
+async function writeAllCourseInfo(allCourseInfo) {
+    await fs.writeFile(getCourseDataPath(), JSON.stringify(allCourseInfo, null, 2), 'utf8');
+}
+
+function getMicrosoftSyncTarget(event) {
+    if (event && typeof event.reply === 'function') {
+        return {
+            send(channel, payload) {
+                event.reply(channel, payload);
+            }
+        };
+    }
+
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        return {
+            send(channel, payload) {
+                mainWindow.webContents.send(channel, payload);
+            }
+        };
+    }
+
+    return null;
+}
+
+function sendMicrosoftSyncMessage(event, channel, payload) {
+    const target = getMicrosoftSyncTarget(event);
+    if (target) {
+        target.send(channel, payload);
+    }
+}
+
+function createMicrosoftSyncPayload(reason, payload) {
+    return {
+        reason,
+        background: reason !== 'manual',
+        ...(payload || {})
+    };
+}
+
+function createSyncLaunchOptions() {
+    const chromiumPath = getChromiumPath();
+    const launchOptions = {
+        headless: true,
+        timeout: 60000,
+        args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding',
+            '--disable-features=TranslateUI',
+            '--disable-ipc-flooding-protection',
+            '--memory-pressure-off'
+        ]
+    };
+
+    if (app.isPackaged && chromiumPath) {
+        launchOptions.executablePath = chromiumPath;
+    }
+
+    return launchOptions;
+}
+
+async function createLoggedInCoursePage(config) {
+    await loadLoginState();
+    const now = Date.now();
+    const isLoginExpired = !lastLoginTime || (now - lastLoginTime) > LOGIN_EXPIRE_TIME;
+    if (isLoginExpired) {
+        await resetLoginState();
+    }
+
+    let browser;
+    try {
+        browser = await puppeteer.launch(createSyncLaunchOptions());
+    } catch (error) {
+        let errorMessage = '无法启动浏览器。';
+        if (app.isPackaged) {
+            errorMessage += '请确认系统已安装 Google Chrome 或 Microsoft Edge。';
+        } else {
+            errorMessage += '请检查 Puppeteer 安装是否正确。';
+        }
+        throw new Error(`${errorMessage} ${error.message}`);
+    }
+
+    try {
+        const page = await browser.newPage();
+        page.setDefaultTimeout(30000);
+        page.setDefaultNavigationTimeout(30000);
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
+
+        if (loginCookies && loginCookies.length > 0 && !isLoginExpired) {
+            try {
+                await page.setCookie(...loginCookies);
+            } catch (error) {
+                await resetLoginState();
+            }
+        }
+
+        await ensureJwxtLogin(page, config);
+        return { browser, page };
+    } catch (error) {
+        await browser.close().catch(() => null);
+        throw error;
+    }
+}
+
+function hasCachedCourseInfoForWeek(allCourseInfo, weekNumber) {
+    const weekInfo = allCourseInfo[String(weekNumber)];
+    return Boolean(weekInfo && Array.isArray(weekInfo.courses));
+}
+
+function getMissingCourseWeeks(allCourseInfo) {
+    const missingWeeks = [];
+
+    for (let week = 1; week <= MICROSOFT_SYNC_WEEKS; week += 1) {
+        if (!hasCachedCourseInfoForWeek(allCourseInfo, week)) {
+            missingWeeks.push(week);
+        }
+    }
+
+    return missingWeeks;
+}
+
+async function fetchAllCourseInfoForMicrosoftSync(config, onProgress) {
+    const allCourseInfo = await readAllCourseInfo();
+    const missingWeeks = getMissingCourseWeeks(allCourseInfo);
+
+    if (missingWeeks.length === 0) {
+        if (onProgress) {
+            onProgress('已找到完整本地课表缓存，直接使用本地数据同步微软日历...');
+        }
+
+        if (!allCourseInfo.currentWeek) {
+            allCourseInfo.currentWeek = 1;
+        }
+
+        return allCourseInfo;
+    }
+
+    if (onProgress) {
+        if (missingWeeks.length === MICROSOFT_SYNC_WEEKS) {
+            onProgress('未找到本地课表缓存，准备从教务系统抓取课表...');
+        } else {
+            onProgress(`本地缓存缺少 ${missingWeeks.length} 周课表，准备只补抓缺失周次...`);
+        }
+    }
+
+    let browser = null;
+
+    try {
+        const session = await createLoggedInCoursePage(config);
+        browser = session.browser;
+        const page = session.page;
+
+        for (const week of missingWeeks) {
+            if (onProgress) {
+                onProgress(`正在抓取第 ${week} 周课表（仅补全缺失缓存）...`);
+            }
+
+            const courseInfo = await fetchCourseInfoForWeek(page, String(week));
+            allCourseInfo[String(week)] = courseInfo;
+        }
+
+        if (!allCourseInfo.currentWeek) {
+            allCourseInfo.currentWeek = 1;
+        }
+
+        await writeAllCourseInfo(allCourseInfo);
+        return allCourseInfo;
+    } finally {
+        if (browser) {
+            await browser.close().catch((closeError) => {
+                console.error('关闭浏览器时出错:', closeError);
+            });
+        }
+    }
+}
+
+async function runMicrosoftCalendarSync({ event = null, reason = 'manual', allowInteractiveAuth = true } = {}) {
+    if (microsoftSyncTask) {
+        throw new Error('微软日历同步正在进行中，请稍后再试');
+    }
+
+    microsoftSyncTask = (async () => {
+        const config = await readConfig();
+
+        if (!config.microsoftClientId) {
+            throw new Error('请先在设置中填写微软应用 Client ID，再执行日历同步');
+        }
+
+        if (!config.semesterStart) {
+            throw new Error('请先在设置中填写学期开始日期，再执行日历同步');
+        }
+
+        const emitProgress = (payload) => {
+            sendMicrosoftSyncMessage(event, 'microsoft-sync-progress', createMicrosoftSyncPayload(reason, payload));
+        };
+
+        emitProgress({
+            type: 'info',
+            message: reason === 'manual'
+                ? '正在准备教务登录和微软日历同步...'
+                : '正在执行后台微软日历增量同步...'
+        });
+
+        const allCourseInfo = await fetchAllCourseInfoForMicrosoftSync(config, (message) => {
+            emitProgress({
+                type: 'info',
+                message
+            });
+        });
+
+        let authBrowserOpened = false;
+        const result = await syncCoursesToMicrosoftCalendar({
+            clientId: config.microsoftClientId,
+            tenantId: config.microsoftTenantId || 'common',
+            calendarName: config.microsoftCalendarName || 'HHU 课程表',
+            semesterStart: config.semesterStart,
+            allCourseInfo,
+            tokenCachePath: getMicrosoftTokenCachePath(),
+            statePath: getMicrosoftSyncStatePath(),
+            allowInteractiveAuth,
+            onProgress: (progress) => {
+                if (progress.type === 'device_code' && !authBrowserOpened) {
+                    authBrowserOpened = true;
+                    const authUrl = progress.verificationUriComplete || progress.verificationUri || 'https://microsoft.com/devicelogin';
+                    shell.openExternal(authUrl).catch((error) => {
+                        console.error('打开微软授权页面失败:', error);
+                    });
+                }
+
+                emitProgress(progress);
+            }
+        });
+
+        sendMicrosoftSyncMessage(event, 'microsoft-sync-success', createMicrosoftSyncPayload(reason, result));
+        return result;
+    })();
+
+    try {
+        return await microsoftSyncTask;
+    } catch (error) {
+        sendMicrosoftSyncMessage(event, 'microsoft-sync-error', createMicrosoftSyncPayload(reason, {
+            message: error.message
+        }));
+        throw error;
+    } finally {
+        microsoftSyncTask = null;
+
+        if (global.gc) {
+            global.gc();
+        }
+    }
+}
+
+function clearMicrosoftAutoSyncSchedule() {
+    if (microsoftAutoSyncStartupTimer) {
+        clearTimeout(microsoftAutoSyncStartupTimer);
+        microsoftAutoSyncStartupTimer = null;
+    }
+
+    if (microsoftAutoSyncInterval) {
+        clearInterval(microsoftAutoSyncInterval);
+        microsoftAutoSyncInterval = null;
+    }
+}
+
+async function scheduleMicrosoftAutoSync() {
+    clearMicrosoftAutoSyncSchedule();
+
+    let config;
+    try {
+        config = await readConfig();
+    } catch (error) {
+        console.error('读取自动同步配置失败:', error);
+        return;
+    }
+
+    if (!config.microsoftAutoSyncEnabled) {
+        console.log('微软定时同步未启用');
+        return;
+    }
+
+    if (!config.microsoftClientId) {
+        console.log('微软定时同步已跳过：未配置 Client ID');
+        return;
+    }
+
+    const intervalMs = config.microsoftAutoSyncIntervalMinutes * 60 * 1000;
+    const runAutoSync = () => {
+        runMicrosoftCalendarSync({
+            reason: 'auto',
+            allowInteractiveAuth: false
+        }).catch((error) => {
+            console.error('后台微软日历增量同步失败:', error);
+        });
+    };
+
+    microsoftAutoSyncStartupTimer = setTimeout(runAutoSync, 15000);
+    microsoftAutoSyncInterval = setInterval(runAutoSync, intervalMs);
+    console.log(`微软定时同步已启用，间隔 ${config.microsoftAutoSyncIntervalMinutes} 分钟`);
+}
+
 let mainWindow = null;
 let tray = null;
 let configWindow = null;
+let microsoftAutoSyncInterval = null;
+let microsoftAutoSyncStartupTimer = null;
+let microsoftSyncTask = null;
 const isDev = process.env.NODE_ENV === 'development';
 // 设置应用程序图标
 if (process.platform === 'win32') {
@@ -265,13 +866,7 @@ function createWindow() {
     
     // 添加窗口焦点事件处理
     mainWindow.on('focus', () => {
-        // 当窗口获得焦点时，确保事件处理正常
-        mainWindow.webContents.executeJavaScript(`
-            document.body.style.pointerEvents = 'auto';
-            console.log('Window focused, events re-enabled');
-        `).catch(error => {
-            console.log('焦点恢复时执行JavaScript失败:', error);
-        });
+        console.log('Window focused');
     });
     
     mainWindow.on('blur', () => {
@@ -282,17 +877,6 @@ function createWindow() {
     if (isDev) {
         mainWindow.webContents.openDevTools();
     }
-    // 添加IPC事件处理器
-    ipcMain.on('toggle-dev-tools', () => {
-        if (mainWindow) {
-            if (mainWindow.webContents.isDevToolsOpened()) {
-                mainWindow.webContents.closeDevTools();
-            } else {
-                mainWindow.webContents.openDevTools();
-            }
-        }
-    });
-    
     // 当窗口加载完成时，检查并加载本地 JSON 文件
     mainWindow.webContents.on('did-finish-load', async () => {
         try {
@@ -359,10 +943,6 @@ function createWindow() {
         }
     });
     */
-    // 添加这个新的 IPC 处理程序
-    ipcMain.on('quit-app', () => {
-        app.quit();
-    });
     mainWindow.on('closed', () => {
         mainWindow = null;
     });
@@ -420,21 +1000,17 @@ function showMainWindow() {
     if (mainWindow === null) {
         createWindow();
     } else {
-        // 确保窗口显示和获得焦点
         if (mainWindow.isMinimized()) {
             mainWindow.restore();
         }
         mainWindow.show();
         mainWindow.focus();
         mainWindow.setAlwaysOnTop(true);
-        mainWindow.setAlwaysOnTop(false); // 立即取消置顶，只是为了确保窗口获得焦点
-        
-        // 强制刷新窗口内容
-        mainWindow.webContents.reload();
+        mainWindow.setAlwaysOnTop(false);
     }
 }
 function hideMainWindow() {
-    if (mainWindow == null) {
+    if (mainWindow !== null) {
         mainWindow.hide();
     }
 }
@@ -444,7 +1020,6 @@ function toggleMainWindow() {
     } else if (mainWindow.isVisible()) {
         mainWindow.hide();
     } else {
-        // 确保窗口正确显示和获得焦点
         if (mainWindow.isMinimized()) {
             mainWindow.restore();
         }
@@ -452,19 +1027,6 @@ function toggleMainWindow() {
         mainWindow.focus();
         mainWindow.setAlwaysOnTop(true);
         mainWindow.setAlwaysOnTop(false);
-        
-        // 检查渲染进程是否响应
-        mainWindow.webContents.executeJavaScript(`
-            console.log('Window focus restored');
-            document.body.style.pointerEvents = 'auto';
-            // 重新初始化事件监听器
-            if (typeof initializeEventListeners === 'function') {
-                initializeEventListeners();
-            }
-        `).catch(error => {
-            console.log('执行JavaScript失败，可能需要重新加载窗口:', error);
-            mainWindow.webContents.reload();
-        });
     }
 }
 app.whenReady().then(async () => {
@@ -472,6 +1034,7 @@ app.whenReady().then(async () => {
     await initializeAppData();
     
     createWindow();
+    await scheduleMicrosoftAutoSync();
     
     // 监控内存使用情况
     setInterval(() => {
@@ -505,6 +1068,8 @@ app.on('window-all-closed', () => {
 
 // 修改 update-course-info 函数
 ipcMain.on('update-course-info', async (event, selectedWeek) => {
+    let browser = null;
+
     try {
         // 首先尝试读取本地数据
         const filePath = getCourseDataPath();
@@ -586,291 +1151,89 @@ ipcMain.on('update-course-info', async (event, selectedWeek) => {
         
         if (isLoginExpired) {
             console.log('登录状态已过期或不存在，需要重新登录');
-            loginCookies = null;
-            lastLoginTime = null;
+            await resetLoginState();
         } else {
             console.log('使用缓存的登录状态');
         }
-        let browser;
-        // 添加超时控制
-        const browserLaunchTimeout = setTimeout(() => {
-            console.error('浏览器启动超时');
-            event.reply('load-course-info-error', '浏览器启动超时，请重试');
-            return;
-        }, 60000); // 60秒超时
+        const chromiumPath = getChromiumPath();
+        const launchOptions = {
+            headless: true,
+            timeout: 60000,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-background-timer-throttling',
+                '--disable-backgrounding-occluded-windows',
+                '--disable-renderer-backgrounding',
+                '--disable-features=TranslateUI',
+                '--disable-ipc-flooding-protection',
+                '--memory-pressure-off'
+            ]
+        };
+
+        if (app.isPackaged && chromiumPath) {
+            console.log('使用系统浏览器:', chromiumPath);
+            launchOptions.executablePath = chromiumPath;
+        }
 
         try {
-            // 获取 Chromium 可执行文件路径
-            const chromiumPath = getChromiumPath();
-            const launchOptions = {
-                headless: true,
-                args: [
-                    '--no-sandbox', 
-                    '--disable-setuid-sandbox', 
-                    '--disable-dev-shm-usage',
-                    '--disable-background-timer-throttling',
-                    '--disable-backgrounding-occluded-windows',
-                    '--disable-renderer-backgrounding',
-                    '--disable-features=TranslateUI',
-                    '--disable-ipc-flooding-protection',
-                    '--memory-pressure-off'
-                ]
-            };
-            
-            // 如果是打包环境，尝试使用系统浏览器
-            if (app.isPackaged) {
-                const systemBrowser = getChromiumPath();
-                if (systemBrowser) {
-                    console.log('使用系统浏览器:', systemBrowser);
-                    launchOptions.executablePath = systemBrowser;
-                } else {
-                    console.log('未找到系统浏览器，使用默认配置');
-                }
-            }
-            
             browser = await puppeteer.launch(launchOptions);
-            clearTimeout(browserLaunchTimeout);
         } catch (error) {
             console.error('启动浏览器失败:', error.message);
-            clearTimeout(browserLaunchTimeout);
-            
-            // 提供更详细的错误信息
+
             let errorMessage = '无法启动浏览器。';
             if (app.isPackaged) {
                 errorMessage += '请确保系统已安装 Google Chrome 或 Microsoft Edge 浏览器。如果已安装，请尝试以管理员身份运行此应用。';
             } else {
                 errorMessage += '请检查 Puppeteer 安装是否正确。';
             }
-            
-            console.error('浏览器启动错误详情:', error);
-            event.reply('load-course-info-error', errorMessage);
-            return;
+
+            throw new Error(errorMessage);
         }
         const page = await browser.newPage();
+        page.setDefaultTimeout(30000);
+        page.setDefaultNavigationTimeout(30000);
         
         // 设置用户代理以避免被识别为自动化工具
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36');
         
         // 如果有缓存的登录状态，先设置 cookies
-        if (loginCookies && !isLoginExpired) {
+        if (loginCookies && loginCookies.length > 0 && !isLoginExpired) {
             console.log('设置缓存的登录 cookies...');
             try {
                 await page.setCookie(...loginCookies);
                 console.log('成功设置缓存的登录状态');
             } catch (error) {
                 console.log('设置缓存登录状态失败，将重新登录:', error);
-                loginCookies = null;
-                lastLoginTime = null;
+                await resetLoginState();
             }
         }
         
         console.log('开始登录过程...');
-        
-        // 登录过程
-        let needLogin = !loginCookies || isLoginExpired;
-        
-        try {
-            await page.goto('https://authserver.hhu.edu.cn/authserver/login?service=https%3A%2F%2Fmy.hhu.edu.cn%2Fportal-web%2Fj_spring_cas_security_check', {
-                waitUntil: 'networkidle2',
-                timeout: 30000
-            });
-            
-            // 检查是否已经登录（通过检查当前URL或页面内容）
-            const currentUrl = page.url();
-            const pageTitle = await page.title();
-            
-            console.log(`当前URL: ${currentUrl}`);
-            console.log(`页面标题: ${pageTitle}`);
-            
-            // 更严格的登录状态检查
-            if ((currentUrl.includes('my.hhu.edu.cn') || currentUrl.includes('portal-web')) && 
-                !pageTitle.includes('登录') && !currentUrl.includes('authserver')) {
-                console.log('检测到已登录状态，跳过登录流程');
-                needLogin = false;
-            } else if (loginCookies && !isLoginExpired) {
-                console.log('检测到登录页面，可能cookies已失效，重置登录状态');
-                loginCookies = null;
-                lastLoginTime = null;
-                needLogin = true;
-            }
-            
-            if (needLogin) {
-                console.log('页面加载完成，开始输入用户名和密码...');
-                
-                await page.waitForSelector('#username', { timeout: 10000 });
-                await page.type('#username', config.username, { delay: 100 });
-                
-                await page.waitForSelector('#password', { timeout: 10000 });
-                await page.type('#password', config.password, { delay: 100 });
-                
-                const loginButtonSelector = '.auth_login_btn.primary.full_width';
-                await page.waitForSelector(loginButtonSelector, { timeout: 10000 });
-                
-                console.log('点击登录按钮...');
-                await page.click(loginButtonSelector);
-                
-                await page.waitForNavigation({
-                    waitUntil: 'networkidle2',
-                    timeout: 30000
-                });
-                
-                console.log('登录成功，已跳转');
-                
-                // 保存登录状态
-                const cookies = await page.cookies();
-                loginCookies = cookies;
-                lastLoginTime = Date.now();
-                console.log('已保存登录状态到内存');
-                
-                // 异步保存到文件
-                saveLoginState();
-            } else {
-                console.log('使用已有登录状态');
-            }
-        } catch (loginError) {
-            console.error('登录过程中发生错误:', loginError);
-            // 清除可能无效的登录状态
-            loginCookies = null;
-            lastLoginTime = null;
-            await browser.close();
-            throw new Error('登录失败: ' + loginError.message);
-        }
+        await ensureJwxtLogin(page, config);
 
-        const cookies = await page.cookies();
-        const iPlanetDirectoryPro = cookies.find(cookie => cookie.name === 'iPlanetDirectoryPro') || 
-                                   cookies.find(cookie => cookie.name.includes('JSESSIONID')) ||
-                                   cookies.find(cookie => cookie.name.includes('iPlanet'));
-        if (iPlanetDirectoryPro) {
-            console.log('获取到登录凭证，访问课程表页面...');
-            
-            try {
-                // 访问SSO页面
-                await page.goto('http://jwxt.hhu.edu.cn/sso.jsp', {
-                    waitUntil: 'networkidle2',
-                    timeout: 30000
-                });
-                
-                console.log('SSO页面访问成功，等待重定向...');
-                await new Promise(resolve => setTimeout(resolve, 3000));
-                
-                // 访问具体的课程表页面
-                console.log(`正在获取第${targetWeek}周的课程信息...`);
-                await page.goto(`http://jwxt.hhu.edu.cn/jsxsd/framework/jsdPerson_hehdx.htmlx?xkzc=${targetWeek}`, {
-                    waitUntil: 'networkidle2',
-                    timeout: 30000
-                });
-                
-                // 先获取页面内容来调试
-                console.log('页面加载完成，正在检查页面结构...');
-                const currentPageContent = await page.content();
-                const currentPageTitle = await page.title();
-                const currentPageUrl = page.url();
-                
-                console.log('页面标题:', currentPageTitle);
-                console.log('当前URL:', currentPageUrl);
-                
-                // 检查是否被重定向到登录页面
-                if (currentPageTitle.includes('登录') || currentPageUrl.includes('authserver') || currentPageUrl.includes('login')) {
-                    console.log('检测到被重定向到登录页面，登录状态可能已失效');
-                    // 清除登录状态并抛出错误
-                    loginCookies = null;
-                    lastLoginTime = null;
-                    throw new Error('登录状态失效，需要重新登录');
-                }
-                
-                // 检查可能的选择器
-                const possibleSelectors = ['.xsdPerson', '#xsdPerson', '.table-class', '.course-table', '.kbcontent'];
-                let targetSelector = null;
-                
-                for (const selector of possibleSelectors) {
-                    const element = await page.$(selector);
-                    if (element) {
-                        targetSelector = selector;
-                        console.log(`找到目标元素: ${selector}`);
-                        break;
-                    }
-                }
-                
-                if (!targetSelector) {
-                    console.log('未找到已知的页面元素，尝试查找表格元素...');
-                    // 尝试查找任何表格元素
-                    const tables = await page.$$('table');
-                    console.log(`页面中共有 ${tables.length} 个表格元素`);
-                    
-                    // 如果找不到预期元素，保存页面内容用于调试
-                    const debugPath = getResourcePath('debug_page.html');
-                    await fs.writeFile(debugPath, currentPageContent, 'utf8');
-                    console.log(`页面内容已保存到: ${debugPath}`);
-                    
-                    // 抛出更详细的错误
-                    throw new Error(`页面结构可能已变更，未找到课程表元素。页面内容已保存到 ${debugPath} 用于调试`);
-                }
-                
-                // 等待目标元素加载
-                await page.waitForSelector(targetSelector, { timeout: 30000 });
-                console.log('课程表页面加载完成');
-                
-                // 检查是否有课程数据
-                const hasCourseData = await page.$(`${targetSelector} .table-class`) || await page.$('table.table-class') || await page.$('.table-class');
-                if (!hasCourseData) {
-                    console.log(`第${targetWeek}周没有课程数据或页面结构已变更`);
-                    // 保存空的课程信息到缓存，避免重复获取
-                    const emptyCourseInfo = {
-                        courses: [],
-                        note: '',
-                        dates: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-                        timeSlots: [],
-                        currentWeek: parseInt(targetWeek)
-                    };
-                    allCourseInfo[targetWeek] = emptyCourseInfo;
-                    allCourseInfo.currentWeek = parseInt(targetWeek);
-                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
-                    
-                    event.reply('course-info-empty', { week: targetWeek, message: `第${targetWeek}周没有课程安排` });
-                    await browser.close();
-                    return;
-                }
-                
-                const pageContent = await page.content();
-                const courseInfo = await parseCourseInfo(pageContent, targetWeek);
-                
-                if (courseInfo.courses.length === 0) {
-                    console.log(`第${targetWeek}周解析出的课程数量为0`);
-                    // 保存空的课程信息到缓存
-                    allCourseInfo[targetWeek] = courseInfo;
-                    allCourseInfo.currentWeek = parseInt(targetWeek);
-                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
-                    
-                    event.reply('course-info-empty', { week: targetWeek, message: `第${targetWeek}周没有课程安排` });
-                } else {
-                    // 更新特定周次的课程信息
-                    allCourseInfo[targetWeek] = courseInfo;
-                    allCourseInfo.currentWeek = parseInt(targetWeek);
-                    
-                    // 更新 JSON 文件
-                    await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
-                    console.log(`第${targetWeek}周课程信息已更新并保存到 course_info.json 文件，共${courseInfo.courses.length}门课程`);
-                    event.reply('course-info-updated', allCourseInfo);
-                }
-            } catch (courseError) {
-                console.error('获取课程信息时发生错误:', courseError);
-                event.reply('load-course-info-error', '获取课程信息失败: ' + courseError.message);
-            }
-        } else {
-            console.log('未获取到有效的登录凭证');
-            event.reply('load-course-info-error', '登录失败，未获取到有效凭证');
-        }
-        await browser.close();
+        console.log('登录成功，开始访问课程表页面...');
+        const courseInfo = await fetchCourseInfoForWeek(page, targetWeek);
         
-        // 强制垃圾回收（如果可用）
-        if (global.gc) {
-            global.gc();
+        if (courseInfo.courses.length === 0) {
+            console.log(`第${targetWeek}周解析出的课程数量为0`);
+            allCourseInfo[targetWeek] = courseInfo;
+            allCourseInfo.currentWeek = parseInt(targetWeek);
+            await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+            
+            event.reply('course-info-empty', { week: targetWeek, message: `第${targetWeek}周没有课程安排` });
+        } else {
+            allCourseInfo[targetWeek] = courseInfo;
+            allCourseInfo.currentWeek = parseInt(targetWeek);
+            await fs.writeFile(filePath, JSON.stringify(allCourseInfo, null, 2), 'utf8');
+            console.log(`第${targetWeek}周课程信息已更新并保存到 course_info.json 文件，共${courseInfo.courses.length}门课程`);
+            event.reply('course-info-updated', allCourseInfo);
         }
     } catch (error) {
-        console.error('更新课程信息时发生错误', error);
-        event.reply('load-course-info-error', '更新课程信息时发生错误 ' + error.message);
-        
-        // 确保浏览器被关闭
+        console.error('更新课程信息时发生错误:', error);
+        event.reply('load-course-info-error', '更新课程信息时发生错误: ' + error.message);
+    } finally {
         if (browser) {
             try {
                 await browser.close();
@@ -878,8 +1241,25 @@ ipcMain.on('update-course-info', async (event, selectedWeek) => {
                 console.error('关闭浏览器时出错:', closeError);
             }
         }
+
+        if (global.gc) {
+            global.gc();
+        }
     }
 });
+
+ipcMain.on('sync-microsoft-calendar', async (event) => {
+    try {
+        await runMicrosoftCalendarSync({
+            event,
+            reason: 'manual',
+            allowInteractiveAuth: true
+        });
+    } catch (error) {
+        console.error('同步微软日历失败:', error);
+    }
+});
+
 async function parseCourseInfo(html, targetWeek) {
     const $ = cheerio.load(html, { decodeEntities: false });
     const courses = [];
@@ -1003,6 +1383,17 @@ ipcMain.on('hide-window', () => {
 ipcMain.on('show-window', () => {
     showMainWindow();
 });
+ipcMain.on('toggle-dev-tools', () => {
+    if (!mainWindow) {
+        return;
+    }
+
+    if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+    } else {
+        mainWindow.webContents.openDevTools();
+    }
+});
 app.on('before-quit', () => {
     app.isQuitting = true;
 });
@@ -1037,8 +1428,8 @@ ipcMain.on('quit-app', () => {
 
 function createConfigWindow() {
     configWindow = new BrowserWindow({
-        width: 400,
-        height: 300,
+        width: 520,
+        height: 760,
         frame: false,
         webPreferences: {
             nodeIntegration: true,
@@ -1063,9 +1454,7 @@ ipcMain.on('open-config', () => {
 });
 ipcMain.on('load-config', async (event) => {
     try {
-        const configPath = getConfigPath();
-        const data = await fs.readFile(configPath, 'utf8');
-        const config = JSON.parse(data);
+        const config = await readConfig();
         event.reply('config-loaded', config);
     } catch (error) {
         console.error('加载配置时发生错误', error);
@@ -1074,8 +1463,12 @@ ipcMain.on('load-config', async (event) => {
 });
 ipcMain.on('save-config', async (event, config) => {
     try {
-        const configPath = getConfigPath();
-        await fs.writeFile(configPath, JSON.stringify(config, null, 2), 'utf8');
+        const existingConfig = await readConfig();
+        await writeConfig({
+            ...existingConfig,
+            ...(config || {})
+        });
+        await scheduleMicrosoftAutoSync();
         event.reply('config-saved', '配置保存成功');
         
         // 通知主窗口配置已更新
@@ -1105,9 +1498,7 @@ ipcMain.on('close-config-window', () => {
 // 添加新的 IPC 监听器来获取学期开始日期
 ipcMain.on('get-semester-start', async (event) => {
     try {
-        const configPath = getConfigPath();
-        const data = await fs.readFile(configPath, 'utf8');
-        const config = JSON.parse(data);
+        const config = await readConfig();
         event.reply('semester-start', config.semesterStart);
     } catch (error) {
         console.error('获取学期开始日期时发生错误:', error);

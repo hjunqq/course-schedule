@@ -1,15 +1,15 @@
-# è®¾ç½®PowerShellæ§åˆ¶å°ç¼–ç ä¸ºUTF-8
+# ÉèÖÃPowerShell¿ØÖÆÌ¨±àÂëÎªUTF-8
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 [Console]::InputEncoding = [System.Text.Encoding]::UTF8
 
-# è®¾ç½®ç¯å¢ƒå˜é‡
+# ÉèÖÃ»·¾³±äÁ¿
 $env:NODE_OPTIONS = "--no-warnings"
 $env:FORCE_COLOR = "0"
 
-Write-Host "æ­£åœ¨å¯åŠ¨æ²³æµ·å¤§å­¦è¯¾ç¨‹è¡¨åº”ç”¨..." -ForegroundColor Green
+Write-Host "ÕıÔÚÆô¶¯ºÓº£´óÑ§¿Î³Ì±íÓ¦ÓÃ..." -ForegroundColor Green
 
-# å¯åŠ¨åº”ç”¨
+# Æô¶¯Ó¦ÓÃ
 & "C:\Program Files\nodejs\node.exe" node_modules/electron/cli.js .
 
-Write-Host "åº”ç”¨å·²é€€å‡ºï¼ŒæŒ‰ä»»æ„é”®ç»§ç»­..." -ForegroundColor Yellow
+Write-Host "Ó¦ÓÃÒÑÍË³ö£¬°´ÈÎÒâ¼ü¼ÌĞø..." -ForegroundColor Yellow
 Read-Host

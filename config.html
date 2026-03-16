@@ -80,6 +80,7 @@
             flex-direction: column;
             padding: 20px;
             box-sizing: border-box;
+            overflow-y: auto;
         }
 
         .form-group {
@@ -94,12 +95,40 @@
 
         input[type="text"],
         input[type="password"],
-        input[type="date"] {
+        input[type="date"],
+        input[type="number"] {
             width: 100%;
             padding: 8px;
             border: 1px solid var(--border-color);
             border-radius: 4px;
             font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        .checkbox-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checkbox-row input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            margin: 0;
+        }
+
+        .field-note {
+            margin-top: 6px;
+            font-size: 12px;
+            line-height: 1.6;
+            color: #666;
+        }
+
+        code {
+            background-color: rgba(0, 0, 0, 0.06);
+            padding: 1px 4px;
+            border-radius: 3px;
+            font-family: Consolas, 'Courier New', monospace;
         }
 
         button {
@@ -150,6 +179,34 @@
             <div class="form-group">
                 <label for="semesterStart"><i class="fas fa-calendar-alt icon"></i>学期第一周开始日期:</label>
                 <input type="date" id="semesterStart" name="semesterStart" required>
+            </div>
+            <div class="form-group">
+                <label for="microsoftClientId"><i class="fab fa-microsoft icon"></i>Microsoft Client ID:</label>
+                <input type="text" id="microsoftClientId" name="microsoftClientId" placeholder="Azure 应用注册的 Application (client) ID">
+            </div>
+            <div class="form-group">
+                <label for="microsoftTenantId"><i class="fas fa-building icon"></i>Tenant ID:</label>
+                <input type="text" id="microsoftTenantId" name="microsoftTenantId" placeholder="默认 common，可留空">
+                <div class="field-note"><code>common</code> 允许任意组织账号，应用若支持个人账号时也可登录 Outlook/Hotmail；<code>organizations</code> 仅组织账号；<code>consumers</code> 仅个人账号；填写租户 GUID 则只允许该组织。</div>
+            </div>
+            <div class="form-group">
+                <label for="microsoftCalendarName"><i class="fas fa-calendar-check icon"></i>同步日历名称:</label>
+                <input type="text" id="microsoftCalendarName" name="microsoftCalendarName" placeholder="默认 HHU 课程表">
+            </div>
+            <div class="form-group">
+                <label><i class="fas fa-rotate icon"></i>定时增量同步:</label>
+                <div class="checkbox-row">
+                    <input type="checkbox" id="microsoftAutoSyncEnabled" name="microsoftAutoSyncEnabled">
+                    <span>启用后台定时增量同步</span>
+                </div>
+                <div class="field-note">程序需要保持运行或最小化到托盘。首次请先手动同步一次，以完成微软授权缓存。</div>
+            </div>
+            <div class="form-group">
+                <label for="microsoftAutoSyncIntervalMinutes"><i class="fas fa-clock icon"></i>同步间隔（分钟）:</label>
+                <input type="number" id="microsoftAutoSyncIntervalMinutes" name="microsoftAutoSyncIntervalMinutes" min="15" max="1440" step="15" value="360">
+            </div>
+            <div class="form-group field-note">
+                说明：同步到微软日历前，需要先在 Microsoft Entra 应用注册里创建一个“公共客户端/桌面应用”，并授予 <code>Calendars.ReadWrite</code> 与 <code>User.Read</code> 委托权限。如果你要同步到其他组织或个人 Microsoft 账号，应用注册的“支持的帐户类型”必须改成多租户，个人账号场景还要允许“个人 Microsoft 帐户”。
             </div>
             <button type="submit" id="saveConfig"><i class="fas fa-save icon"></i>保存配置</button>
         </form>

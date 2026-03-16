@@ -16,16 +16,12 @@ function updateActivity() {
 function checkResponsiveness() {
     const now = Date.now();
     if (now - lastActivityTime > 30000) { // 30秒无活动
-        console.log('界面可能失去响应，尝试重新初始化事件');
-        reinitializeEvents();
+        console.log('界面空闲中，跳过事件重建');
     }
 }
 
 // 重新初始化所有事件监听器
 function reinitializeEvents() {
-    console.log('重新初始化事件监听器');
-    eventListenersInitialized = false;
-    initializeEventListeners();
     updateActivity();
 }
 
@@ -40,12 +36,8 @@ setInterval(checkResponsiveness, 10000);
 // 页面可见性变化监听器
 document.addEventListener('visibilitychange', () => {
     if (!document.hidden) {
-        console.log('页面变为可见，重新初始化事件');
+        console.log('页面变为可见');
         updateActivity();
-        // 页面变为可见时重新初始化事件
-        setTimeout(() => {
-            reinitializeEvents();
-        }, 100);
     }
 });
 
@@ -53,9 +45,6 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('focus', () => {
     console.log('窗口获得焦点');
     updateActivity();
-    setTimeout(() => {
-        reinitializeEvents();
-    }, 100);
 });
 
 // 全局错误处理
@@ -118,6 +107,7 @@ function initializeEventListeners() {
         loginButton: document.getElementById('loginButton'),
         loadButton: document.getElementById('loadButton'),
         configButton: document.getElementById('configButton'),
+        syncMicrosoftButton: document.getElementById('syncMicrosoftButton'),
         currentWeekBtn: document.getElementById('currentWeekBtn'),
         prevWeekBtn: document.getElementById('prevWeekBtn'),
         nextWeekBtn: document.getElementById('nextWeekBtn'),
@@ -133,46 +123,16 @@ function initializeEventListeners() {
         }
     }
     
-    // 移除可能存在的旧事件监听器
-    const newLoginButton = elements.loginButton.cloneNode(true);
-    elements.loginButton.parentNode.replaceChild(newLoginButton, elements.loginButton);
-    
-    const newLoadButton = elements.loadButton.cloneNode(true);
-    elements.loadButton.parentNode.replaceChild(newLoadButton, elements.loadButton);
-    
-    const newConfigButton = elements.configButton.cloneNode(true);
-    elements.configButton.parentNode.replaceChild(newConfigButton, elements.configButton);
-    
-    const newCurrentWeekBtn = elements.currentWeekBtn.cloneNode(true);
-    elements.currentWeekBtn.parentNode.replaceChild(newCurrentWeekBtn, elements.currentWeekBtn);
-    
-    const newPrevWeekBtn = elements.prevWeekBtn.cloneNode(true);
-    elements.prevWeekBtn.parentNode.replaceChild(newPrevWeekBtn, elements.prevWeekBtn);
-    
-    const newNextWeekBtn = elements.nextWeekBtn.cloneNode(true);
-    elements.nextWeekBtn.parentNode.replaceChild(newNextWeekBtn, elements.nextWeekBtn);
-    
-    const newWeekSelector = elements.weekSelector.cloneNode(true);
-    elements.weekSelector.parentNode.replaceChild(newWeekSelector, elements.weekSelector);
-    
-    // 重新初始化周次选择器的选项
-    const weekSelectorElement = document.getElementById('weekSelector');
-    weekSelectorElement.innerHTML = '<option value="">选择周次</option>';
-    for (let i = 1; i <= 25; i++) {
-        const option = document.createElement('option');
-        option.value = i;
-        option.textContent = `第${i}周`;
-        weekSelectorElement.appendChild(option);
-    }
-    
-    // 重新获取元素引用
-    const loginButton = document.getElementById('loginButton');
-    const loadButton = document.getElementById('loadButton');
-    const configButton = document.getElementById('configButton');
-    const currentWeekBtn = document.getElementById('currentWeekBtn');
-    const prevWeekBtn = document.getElementById('prevWeekBtn');
-    const nextWeekBtn = document.getElementById('nextWeekBtn');
-    const weekSelector = document.getElementById('weekSelector');
+    const {
+        loginButton,
+        loadButton,
+        configButton,
+        syncMicrosoftButton,
+        currentWeekBtn,
+        prevWeekBtn,
+        nextWeekBtn,
+        weekSelector
+    } = elements;
     
     // 添加事件监听器
     // 添加事件监听器
@@ -206,6 +166,15 @@ function initializeEventListeners() {
         console.log('配置按钮被点击');
         updateActivity();
         ipcRenderer.send('open-config');
+    });
+
+    syncMicrosoftButton.addEventListener('click', (e) => {
+        e.preventDefault();
+        console.log('同步微软日历按钮被点击');
+        updateActivity();
+        showLoading('正在准备同步微软日历...');
+        updateStatusInfo('正在准备同步微软日历...', 'warning');
+        ipcRenderer.send('sync-microsoft-calendar');
     });
     
     // 添加新的事件监听器
@@ -296,7 +265,7 @@ function initializeEventListeners() {
         }
     });
 
-    document.getElementById('weekSelector').addEventListener('change', (e) => {
+    weekSelector.addEventListener('change', (e) => {
         e.preventDefault();
         console.log('周选择器变化');
         updateActivity();
@@ -305,40 +274,6 @@ function initializeEventListeners() {
             loadSpecificWeek(selectedWeek);
         }
     });
-    
-    // 添加窗口控制按钮事件
-    const minimizeBtn = document.getElementById('minimize-btn');
-    const maximizeBtn = document.getElementById('maximize-btn');
-    const closeBtn = document.getElementById('close-btn');
-    
-    if (minimizeBtn) {
-        minimizeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            updateActivity();
-            require('electron').remote.getCurrentWindow().minimize();
-        });
-    }
-    
-    if (maximizeBtn) {
-        maximizeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            updateActivity();
-            const win = require('electron').remote.getCurrentWindow();
-            if (win.isMaximized()) {
-                win.unmaximize();
-            } else {
-                win.maximize();
-            }
-        });
-    }
-    
-    if (closeBtn) {
-        closeBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            updateActivity();
-            require('electron').remote.getCurrentWindow().close();
-        });
-    }
     
     eventListenersInitialized = true;
     console.log('事件监听器初始化完成');
@@ -409,7 +344,11 @@ ipcRenderer.on('login-result', (event, message) => {
 });
 
 // 显示加载指示器
-function showLoading() {
+function showLoading(message = '正在处理中，请稍候...') {
+    const loadingText = document.getElementById('loadingText');
+    if (loadingText) {
+        loadingText.textContent = message;
+    }
     document.getElementById('loadingIndicator').style.display = 'block';
 }
 
@@ -494,6 +433,55 @@ ipcRenderer.on('load-course-info-error', (event, message) => {
     hideLoading();
     updateStatusInfo(message, 'error');
     showStatus(message, 5000);
+});
+
+ipcRenderer.on('microsoft-sync-progress', (event, payload) => {
+    const progress = payload || {};
+    const message = progress.message || '正在同步微软日历...';
+    const isBackground = Boolean(progress.background);
+
+    if (!isBackground) {
+        showLoading(message);
+    }
+
+    if (progress.type === 'device_code') {
+        updateStatusInfo(`请在浏览器完成微软授权，设备代码：${progress.userCode || '请查看提示'}`, 'warning');
+        showStatus(message, 15000);
+        return;
+    }
+
+    updateStatusInfo(message, isBackground ? 'info' : 'warning');
+});
+
+ipcRenderer.on('microsoft-sync-success', (event, payload) => {
+    const result = payload || {};
+    const isBackground = Boolean(result.background);
+    const createdCount = Number(result.createdCount || 0);
+    const deletedCount = Number(result.deletedCount || 0);
+    const unchangedCount = Number(result.unchangedCount || 0);
+
+    if (!isBackground) {
+        hideLoading();
+    }
+
+    const message = isBackground
+        ? `后台微软日历增量同步完成：新增 ${createdCount}，删除 ${deletedCount}，保留 ${unchangedCount}`
+        : `微软日历同步完成，已同步 ${result.eventCount} 个事件到「${result.calendarName}」`;
+    updateStatusInfo(message, 'success');
+    showStatus(message, isBackground ? 4000 : 6000);
+});
+
+ipcRenderer.on('microsoft-sync-error', (event, payload) => {
+    const errorPayload = typeof payload === 'string' ? { message: payload } : (payload || {});
+    const isBackground = Boolean(errorPayload.background);
+    const message = errorPayload.message || '微软日历同步失败';
+
+    if (!isBackground) {
+        hideLoading();
+    }
+
+    updateStatusInfo(message, 'error');
+    showStatus(message, isBackground ? 5000 : 8000);
 });
 
 // 添加自动更新函数

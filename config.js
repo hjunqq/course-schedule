@@ -23,7 +23,12 @@ document.addEventListener('DOMContentLoaded', () => {
         const config = {
             username: document.getElementById('username').value,
             password: document.getElementById('password').value,
-            semesterStart: document.getElementById('semesterStart').value
+            semesterStart: document.getElementById('semesterStart').value,
+            microsoftClientId: document.getElementById('microsoftClientId').value.trim(),
+            microsoftTenantId: document.getElementById('microsoftTenantId').value.trim() || 'common',
+            microsoftCalendarName: document.getElementById('microsoftCalendarName').value.trim() || 'HHU 课程表',
+            microsoftAutoSyncEnabled: document.getElementById('microsoftAutoSyncEnabled').checked,
+            microsoftAutoSyncIntervalMinutes: Number.parseInt(document.getElementById('microsoftAutoSyncIntervalMinutes').value, 10) || 360
         };
         ipcRenderer.send('save-config', config);
     });
@@ -35,6 +40,11 @@ ipcRenderer.on('config-loaded', (event, config) => {
         document.getElementById('username').value = config.username || '';
         document.getElementById('password').value = config.password || '';
         document.getElementById('semesterStart').value = config.semesterStart || '';
+        document.getElementById('microsoftClientId').value = config.microsoftClientId || '';
+        document.getElementById('microsoftTenantId').value = config.microsoftTenantId || 'common';
+        document.getElementById('microsoftCalendarName').value = config.microsoftCalendarName || 'HHU 课程表';
+        document.getElementById('microsoftAutoSyncEnabled').checked = Boolean(config.microsoftAutoSyncEnabled);
+        document.getElementById('microsoftAutoSyncIntervalMinutes').value = config.microsoftAutoSyncIntervalMinutes || 360;
     }
 });
 
